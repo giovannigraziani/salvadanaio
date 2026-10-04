@@ -157,4 +157,59 @@ export interface AppData {
   piani: Record<MonthKey, MonthPlan>;
   movimenti: Transaction[];
   obiettivi: Goal[];
+  cointestato: JointData;
+}
+
+// ---------- Conto cointestato ----------
+
+/** Chi partecipa al conto cointestato. */
+export type Partner = 'io' | 'partner';
+
+/** Come si dividono le spese comuni. */
+export type SplitRule = 'paritaria' | 'proporzionale' | 'percentuale';
+
+export interface JointSettings {
+  /** Conto (di tipo cointestato) su cui arrivano i versamenti. */
+  contoId?: ID;
+  nomePartner: string;
+  regola: SplitRule;
+  /** Redditi netti mensili, usati dalla regola proporzionale. */
+  redditoIo: Cents;
+  redditoPartner: Cents;
+  /** Quota a mio carico (0-100), usata dalla regola percentuale. */
+  percentualeIo: number;
+  /** Le quote vengono arrotondate per eccesso a multipli di questo importo. */
+  arrotondamento: Cents;
+  /** Saldo del conto all'inizio di `meseSaldoIniziale`. */
+  saldoIniziale: Cents;
+  meseSaldoIniziale: MonthKey;
+}
+
+/** Chi ha pagato una spesa comune: il conto stesso o una persona che l'ha anticipata. */
+export type Payer = 'conto' | Partner;
+
+export interface JointTransaction extends Transaction {
+  pagatoDa: Payer;
+  /** Per le spese anticipate: true quando il conto ha restituito la somma. */
+  rimborsato?: boolean;
+}
+
+/** Piano mensile del conto cointestato. */
+export interface JointPlan {
+  mese: MonthKey;
+  budget: Record<ID, Cents>;
+  spesePreviste: PlannedExpense[];
+  /** Versamento della persona partner (il mio è la quota "cointestato" del mio piano personale). */
+  versamentoPartner: { importo: Cents; eseguito: boolean };
+  note?: string;
+}
+
+export interface JointData {
+  impostazioni: JointSettings;
+  categorie: Category[];
+  ricorrenze: Recurring[];
+  /** Budget per categoria usato per i nuovi piani mensili. */
+  modelloBudget: Record<ID, Cents>;
+  piani: Record<MonthKey, JointPlan>;
+  movimenti: JointTransaction[];
 }

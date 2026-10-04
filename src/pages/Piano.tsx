@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState } from 'react';
 import { newId } from '../domain/id';
 import { formatEuro, percent } from '../domain/money';
 import { addMonths, currentMonth, monthLabel } from '../domain/month';
@@ -19,8 +19,9 @@ import {
 } from '../store/actions';
 import { useData } from '../store/store';
 import { FlowBar } from '../ui/charts';
-import { CategoryDot, ConfirmButton, Field, IconButton, Link, Meter, Modal, Money, MoneyInput, MonthSwitcher, Notice, Stat } from '../ui/components';
+import { CategoryDot, ConfirmButton, Field, IconButton, Link, Meter, Money, MoneyInput, MonthSwitcher, Notice, Stat } from '../ui/components';
 import { IncomeEditor, TransferEditor } from '../ui/editors';
+import { PlannedModal } from '../ui/PlannedModal';
 import { Icon } from '../ui/icons';
 import { navigate } from '../ui/router';
 
@@ -325,90 +326,21 @@ function PlanView({ data, plan }: { data: AppData; plan: MonthPlan }) {
         </Field>
       </div>
 
-      <PlannedModal month={month} data={data} planned={editingPlanned} onClose={() => setEditingPlanned(null)} />
+      <PlannedModal
+        planned={editingPlanned}
+        categorie={data.categorie}
+        exists={!!editingPlanned && plan.spesePreviste.some((x) => x.id === editingPlanned.id)}
+        onSave={(p) =>
+          update((draft) => {
+            const i = draft.spesePreviste.findIndex((x) => x.id === p.id);
+            if (i >= 0) draft.spesePreviste[i] = p;
+            else draft.spesePreviste.push(p);
+          })
+        }
+        onRemove={(id) => removePlanned(month, id)}
+        recurringHint="Per cambiare tutti i mesi modifica la spesa ricorrente nelle Impostazioni."
+        onClose={() => setEditingPlanned(null)}
+      />
     </div>
-  );
-}
-
-function PlannedModal({ month, data, planned, onClose }: { month: MonthKey; data: AppData; planned: PlannedExpense | null; onClose: () => void }) {
-  return (
-    <Modal open={!!planned} onClose={onClose} title={planned?.descrizione ? 'Modifica spesa prevista' : 'Nuova spesa prevista'}>
-      {planned && <PlannedForm month={month} data={data} initial={planned} onDone={onClose} />}
-    </Modal>
-  );
-}
-
-function PlannedForm({ month, data, initial, onDone }: { month: MonthKey; data: AppData; initial: PlannedExpense; onDone: () => void }) {
-  const [p, setP] = useState(initial);
-  const exists = data.piani[month]?.spesePreviste.some((x) => x.id === p.id);
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    if (!p.descrizione.trim() || p.importo <= 0) return;
-    updatePlan(month, (plan) => {
-      const i = plan.spesePreviste.findIndex((x) => x.id === p.id);
-      if (i >= 0) plan.spesePreviste[i] = p;
-      else plan.spesePreviste.push(p);
-    });
-    onDone();
-  };
-  return (
-    <form onSubmit={submit}>
-      <div className="form-grid">
-        <Field label="Descrizione" full>
-          <input className="input" required autoFocus value={p.descrizione} placeholder="Es. visita oculistica" onChange={(e) => setP({ ...p, descrizione: e.target.value })} />
-        </Field>
-        <Field label="Importo previsto (€)">
-          <MoneyInput value={p.importo} onChange={(importo) => setP({ ...p, importo })} />
-        </Field>
-        <Field label="Giorno del mese" hint="Facoltativo">
-          <input
-            className="input"
-            type="number"
-            min={1}
-            max={31}
-            value={p.giorno ?? ''}
-            onChange={(e) => setP({ ...p, giorno: e.target.value ? Number(e.target.value) : undefined })}
-          />
-        </Field>
-        <Field label="Categoria" full>
-          <select className="input" value={p.categoriaId} onChange={(e) => setP({ ...p, categoriaId: e.target.value })}>
-            {data.categorie
-              .filter((c) => !c.archiviata || c.id === p.categoriaId)
-              .map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.nome}
-                </option>
-              ))}
-          </select>
-        </Field>
-      </div>
-      {p.ricorrenzaId && (
-        <p className="small muted">Modifichi solo questo mese. Per cambiare tutti i mesi modifica la spesa ricorrente nelle Impostazioni.</p>
-      )}
-      <div className="modal-foot">
-        <div>
-          {exists && (
-            <button
-              type="button"
-              className="btn danger"
-              onClick={() => {
-                removePlanned(month, p.id);
-                onDone();
-              }}
-            >
-              Rimuovi
-            </button>
-          )}
-        </div>
-        <div className="actions">
-          <button type="button" className="btn" onClick={onDone}>
-            Annulla
-          </button>
-          <button type="submit" className="btn primary">
-            Salva
-          </button>
-        </div>
-      </div>
-    </form>
   );
 }

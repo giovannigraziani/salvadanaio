@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { isValidMonth } from './domain/month';
-import type { Transaction } from './domain/types';
+import type { JointTransaction } from './domain/types';
 import { Analisi } from './pages/Analisi';
 import { Impostazioni } from './pages/Impostazioni';
 import { Movimenti } from './pages/Movimenti';
@@ -13,12 +13,14 @@ import { ConfirmButton, Notice } from './ui/components';
 import { Icon, type IconName } from './ui/icons';
 import { QuickAddContext } from './ui/quickAdd';
 import { navigate, useRoute } from './ui/router';
-import { blankTransaction, TransactionModal } from './ui/TransactionForm';
+import { blankTransaction, TransactionModal, type EditingTransaction, type Scope } from './ui/TransactionForm';
+import { Cointestato } from './pages/Cointestato';
 
 const sections: { path: string; label: string; short: string; icon: IconName }[] = [
   { path: '', label: 'Panoramica', short: 'Home', icon: 'home' },
   { path: 'piano', label: 'Piano mensile', short: 'Piano', icon: 'plan' },
   { path: 'movimenti', label: 'Spese', short: 'Spese', icon: 'list' },
+  { path: 'cointestato', label: 'Conto cointestato', short: 'Comune', icon: 'users' },
   { path: 'analisi', label: 'Analisi', short: 'Analisi', icon: 'chart' },
   { path: 'obiettivi', label: 'Obiettivi', short: 'Obiettivi', icon: 'target' },
   { path: 'impostazioni', label: 'Impostazioni', short: 'Altro', icon: 'settings' },
@@ -49,9 +51,10 @@ function NavLinks({ current, short }: { current: string; short?: boolean }) {
 
 export function App() {
   const data = useData();
-  const [section = '', param] = useRoute();
-  const [editing, setEditing] = useState<Transaction | null>(null);
-  const openTransaction = (partial?: Partial<Transaction>) => setEditing(blankTransaction(partial));
+  const [section = '', param, extra] = useRoute();
+  const [editing, setEditing] = useState<EditingTransaction | null>(null);
+  const openTransaction = (partial?: Partial<JointTransaction>, scope?: Scope) =>
+    setEditing({ tx: blankTransaction(partial), scope: scope ?? (section === 'cointestato' ? 'comune' : 'personale') });
   const month = param && isValidMonth(param) ? param : undefined;
   const saveError = getSaveError();
 
@@ -62,6 +65,9 @@ export function App() {
       break;
     case 'movimenti':
       page = <Movimenti month={month} />;
+      break;
+    case 'cointestato':
+      page = <Cointestato tab={param} month={extra && isValidMonth(extra) ? extra : undefined} />;
       break;
     case 'analisi':
       page = <Analisi />;
@@ -107,7 +113,7 @@ export function App() {
       <button type="button" className="btn primary fab" onClick={() => openTransaction()}>
         <Icon name="plus" /> Spesa
       </button>
-      <TransactionModal tx={editing} onClose={() => setEditing(null)} />
+      <TransactionModal editing={editing} onClose={() => setEditing(null)} />
     </QuickAddContext.Provider>
   );
 }

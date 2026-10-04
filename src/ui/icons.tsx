@@ -20,6 +20,8 @@ const paths = {
   download: 'M12 3v12m-5-5 5 5 5-5M4 21h16',
   upload: 'M12 15V3M7 8l5-5 5 5M4 21h16',
   copy: 'M9 9h11v11H9zM5 15H4V4h11v1',
+  users: 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-7 10v-1a6 6 0 0 1 12 0v1m2-10a3.5 3.5 0 1 0 0-7m3 17v-1a5 5 0 0 0-3-4.6',
+  wallet: 'M3 7a2 2 0 0 1 2-2h13v4M3 7v11a2 2 0 0 0 2 2h15V9H5a2 2 0 0 1-2-2zm14 7h.01',
   spark: 'M12 3v4m0 10v4M3 12h4m10 0h4M6 6l2.5 2.5m7 7L18 18M6 18l2.5-2.5m7-7L18 6',
 } as const;
 

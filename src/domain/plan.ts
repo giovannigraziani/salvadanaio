@@ -16,7 +16,7 @@ import type {
   TransferLine,
 } from './types';
 
-function plannedFromRecurring(r: Recurring): PlannedExpense {
+export function plannedFromRecurring(r: Recurring): PlannedExpense {
   return {
     id: newId(),
     descrizione: r.descrizione,
@@ -40,14 +40,14 @@ export function createPlan(data: AppData, month: MonthKey): MonthPlan {
 }
 
 /** Aggiunge al piano le ricorrenze del mese non ancora presenti (senza duplicarle). */
-export function missingRecurring(plan: MonthPlan, ricorrenze: Recurring[]): PlannedExpense[] {
+export function missingRecurring(plan: Pick<MonthPlan, 'mese' | 'spesePreviste'>, ricorrenze: Recurring[]): PlannedExpense[] {
   const present = new Set(plan.spesePreviste.map((p) => p.ricorrenzaId).filter(Boolean));
   return ricorrenze
     .filter((r) => occursIn(r, plan.mese) && !present.has(r.id))
     .map(plannedFromRecurring);
 }
 
-export function transactionsOfMonth(movimenti: Transaction[], month: MonthKey): Transaction[] {
+export function transactionsOfMonth<T extends Transaction>(movimenti: T[], month: MonthKey): T[] {
   return movimenti.filter((t) => monthOfDate(t.data) === month);
 }
 
@@ -125,7 +125,11 @@ export interface CategoryRow {
 }
 
 /** Righe per categoria: budget, spese previste e spese effettive del mese. */
-export function categoryRows(plan: MonthPlan | undefined, movimentiMese: Transaction[], categorie: Category[]): CategoryRow[] {
+export function categoryRows(
+  plan: Pick<MonthPlan, 'budget' | 'spesePreviste'> | undefined,
+  movimentiMese: Transaction[],
+  categorie: Category[],
+): CategoryRow[] {
   const spent = new Map<ID, Cents>();
   for (const t of movimentiMese) spent.set(t.categoriaId, (spent.get(t.categoriaId) ?? 0) + t.importo);
   const planned = new Map<ID, Cents>();

@@ -1,7 +1,8 @@
 import { emptyData } from './defaults';
 import { addMonths, dateInMonth, daysInMonth } from './month';
+import { createJointPlan, jointMonthSummary } from './joint';
 import { createPlan } from './plan';
-import type { AppData, MonthKey, Transaction } from './types';
+import type { AppData, JointTransaction, MonthKey, Transaction } from './types';
 
 /** Generatore pseudo-casuale deterministico: i dati di esempio sono sempre gli stessi. */
 function rng(seed: number) {
@@ -19,13 +20,13 @@ export function demoData(now: MonthKey, todayDay: number): AppData {
   const random = rng(42);
   const start = addMonths(now, -3);
 
-  data.settings.nome = 'Demo';
+  data.settings.nome = 'Giovanni';
   data.settings.datiDiEsempio = true;
   data.conti.push({ id: 'investimenti', nome: 'Conto titoli', tipo: 'investimenti' });
   data.modello = {
     entrate: [{ descrizione: 'Stipendio', importo: euro(2100) }],
     trasferimenti: [
-      { descrizione: 'Versamento conto cointestato', importo: euro(850), contoId: 'cointestato' },
+      { descrizione: 'Versamento conto cointestato', importo: euro(820), contoId: 'cointestato' },
       { descrizione: 'Versamento risparmi', importo: euro(300), contoId: 'risparmio' },
       { descrizione: 'Accantonamento auto nuova', importo: euro(150), obiettivoId: 'auto' },
       { descrizione: 'PAC ETF', importo: euro(100), obiettivoId: 'pac' },
@@ -123,5 +124,97 @@ export function demoData(now: MonthKey, todayDay: number): AppData {
   }
 
   data.movimenti.sort((a, b) => b.data.localeCompare(a.data));
+  addJointDemo(data, now, todayDay);
   return data;
+}
+
+/** Conto cointestato di esempio: affitto, bollette, spesa e uscite insieme, con una spesa anticipata. */
+function addJointDemo(data: AppData, now: MonthKey, todayDay: number) {
+  const random = rng(7);
+  const start = addMonths(now, -3);
+  const joint = data.cointestato;
+  joint.impostazioni = {
+    ...joint.impostazioni,
+    nomePartner: 'Giulia',
+    regola: 'proporzionale',
+    redditoIo: euro(2100),
+    redditoPartner: euro(1800),
+    arrotondamento: 1000,
+    saldoIniziale: euro(1200),
+    meseSaldoIniziale: start,
+  };
+  joint.modelloBudget = {
+    'c-bollette': euro(50),
+    'c-spesa': euro(400),
+    'c-manutenzione': euro(60),
+    'c-svago': euro(120),
+    'c-viaggi': euro(60),
+    'c-salute': euro(30),
+    'c-altro': euro(40),
+  };
+  joint.ricorrenze = [
+    { id: 'rc-affitto', descrizione: 'Affitto', categoriaId: 'c-casa', importo: euro(750), frequenza: 1, meseInizio: start, giorno: 1, attiva: true },
+    { id: 'rc-internet', descrizione: 'Internet casa', categoriaId: 'c-bollette', importo: euro(27.9), frequenza: 1, meseInizio: start, giorno: 8, attiva: true },
+    { id: 'rc-luce-gas', descrizione: 'Luce e gas', categoriaId: 'c-bollette', importo: euro(138), frequenza: 2, meseInizio: start, giorno: 16, attiva: true },
+    { id: 'rc-tari', descrizione: 'TARI (rata)', categoriaId: 'c-bollette', importo: euro(85), frequenza: 4, meseInizio: addMonths(start, 1), giorno: 30, attiva: true },
+  ];
+
+  const extra: Record<string, { n: number; items: [string, number, number][] }> = {
+    'c-spesa': { n: 7, items: [['Supermercato', 45, 95], ['Mercato', 15, 35], ['Spesa online', 60, 110]] },
+    'c-svago': { n: 3, items: [['Cena fuori insieme', 45, 80], ['Cinema', 18, 24], ['Aperitivo', 15, 30]] },
+    'c-manutenzione': { n: 1, items: [['Ferramenta', 12, 40], ['Detersivi e casa', 15, 35]] },
+    'c-salute': { n: 1, items: [['Farmacia', 8, 25]] },
+    'c-altro': { n: 1, items: [['Regalo amici comuni', 25, 50]] },
+  };
+
+  for (let i = 0; i <= 3; i++) {
+    const month = addMonths(start, i);
+    const isCurrent = month === now;
+    const lastDay = isCurrent ? todayDay : daysInMonth(month);
+    const plan = createJointPlan(data, month);
+    joint.piani[month] = plan;
+
+    // Le quote seguono la regola: il mio versamento è allineato nel piano personale.
+    const quote = jointMonthSummary(data, month).quote;
+    plan.versamentoPartner = { importo: quote.partner, eseguito: !isCurrent || todayDay >= data.settings.giornoStipendio };
+    for (const t of data.piani[month]?.trasferimenti ?? []) if (t.contoId === 'cointestato') t.importo = quote.io;
+
+    for (const p of plan.spesePreviste) {
+      if ((p.giorno ?? 1) > lastDay) continue;
+      const tx: JointTransaction = {
+        id: `tc-${month}-${p.id}`,
+        data: dateInMonth(month, p.giorno ?? 1),
+        descrizione: p.descrizione,
+        categoriaId: p.categoriaId,
+        importo: p.importo,
+        previstaId: p.id,
+        pagatoDa: 'conto',
+      };
+      p.movimentoId = tx.id;
+      joint.movimenti.push(tx);
+    }
+
+    for (const [categoriaId, { n, items }] of Object.entries(extra)) {
+      const howMany = isCurrent ? Math.ceil((n * lastDay) / daysInMonth(month)) : n;
+      for (let k = 0; k < howMany; k++) {
+        if (n === 1 && random() < 0.4) continue;
+        const [descrizione, min, max] = items[Math.floor(random() * items.length)]!;
+        joint.movimenti.push({
+          id: `tc-${month}-${categoriaId}-${k}`,
+          data: dateInMonth(month, 1 + Math.floor(random() * lastDay)),
+          descrizione,
+          categoriaId,
+          importo: euro(Math.round((min + random() * (max - min)) * 100) / 100),
+          pagatoDa: 'conto',
+        });
+      }
+    }
+  }
+
+  // Un weekend pagato da Giulia e già rimborsato, una spesa anticipata da me ancora da rimborsare.
+  joint.movimenti.push(
+    { id: 'tc-weekend', data: dateInMonth(addMonths(now, -2), 14), descrizione: 'Weekend a Bologna', categoriaId: 'c-viaggi', importo: euro(186), pagatoDa: 'partner', rimborsato: true },
+    { id: 'tc-anticipo', data: dateInMonth(now, Math.max(1, todayDay - 1)), descrizione: 'Lampada soggiorno', categoriaId: 'c-manutenzione', importo: euro(39.9), pagatoDa: 'io' },
+  );
+  joint.movimenti.sort((a, b) => b.data.localeCompare(a.data));
 }

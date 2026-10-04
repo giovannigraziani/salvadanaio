@@ -145,7 +145,8 @@ describe('analisi', () => {
     expect(savingsRate(stats)).toBe(26);
     const flow = moneyFlow(stats, data.categorie);
     expect(flow.entrate).toBe(3 * 210000);
-    expect(flow.slices.find((s) => s.key === 'cointestato')?.value).toBe(3 * 85000);
+    const versatoCointestato = stats.reduce((acc, s) => acc + (data.piani[s.mese]?.trasferimenti[0]?.importo ?? 0), 0);
+    expect(flow.slices.find((s) => s.key === 'cointestato')?.value).toBe(versatoCointestato);
     // La categoria "altro" non deve confondersi con i trasferimenti "altro".
     expect(flow.slices.find((s) => s.key === 'altro')).toBeUndefined();
   });

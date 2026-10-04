@@ -1,4 +1,4 @@
-import { defaultCategories, emptyData, palette } from '../domain/defaults';
+import { emptyData } from '../domain/defaults';
 import { demoData } from '../domain/demo';
 import { newId } from '../domain/id';
 import { currentMonth, dateInMonth, monthOfDate, today } from '../domain/month';
@@ -253,11 +253,6 @@ export function saveCategory(category: Category) {
   });
 }
 
-export function newCategory(): Category {
-  const used = getState().categorie.length;
-  return { id: newId(), nome: '', tipo: 'discrezionale', colore: palette[used % palette.length]! };
-}
-
 /** Elimina una categoria solo se non è mai stata usata, altrimenti la archivia. */
 export function deleteCategory(id: ID): 'eliminata' | 'archiviata' {
   const d = getState();
@@ -306,18 +301,6 @@ export function deleteRecurring(id: ID) {
   mutate((d) => {
     d.ricorrenze = d.ricorrenze.filter((r) => r.id !== id);
   });
-}
-
-export function newRecurring(): Recurring {
-  return {
-    id: newId(),
-    descrizione: '',
-    categoriaId: getState().categorie.find((c) => !c.archiviata)?.id ?? defaultCategories[0]!.id,
-    importo: 0,
-    frequenza: 1,
-    meseInizio: currentMonth(),
-    attiva: true,
-  };
 }
 
 export function saveTemplate(template: PlanTemplate) {

@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { emptyData, SCHEMA_VERSION } from '../domain/defaults';
+import { emptyData, emptyJointData, SCHEMA_VERSION } from '../domain/defaults';
 import { demoData } from '../domain/demo';
 import { currentMonth } from '../domain/month';
 import type { AppData } from '../domain/types';
@@ -13,12 +13,15 @@ export function migrate(raw: unknown): AppData {
   if (typeof data.version !== 'number' || data.version > SCHEMA_VERSION)
     throw new Error('Versione dei dati non supportata');
   const base = emptyData();
-  // Versione 1: schema iniziale. Le migrazioni future andranno aggiunte qui in sequenza.
+  // Versione 1 → 2: aggiunta la sezione del conto cointestato.
+  const jointBase = emptyJointData();
+  const joint = data.cointestato ?? jointBase;
   return {
     ...base,
     ...data,
     settings: { ...base.settings, ...data.settings },
     modello: { ...base.modello, ...data.modello },
+    cointestato: { ...jointBase, ...joint, impostazioni: { ...jointBase.impostazioni, ...joint.impostazioni } },
     version: SCHEMA_VERSION,
   } as AppData;
 }

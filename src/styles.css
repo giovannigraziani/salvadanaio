@@ -197,7 +197,7 @@ a {
   }
   .bottom-nav {
     display: grid;
-    grid-template-columns: repeat(6, 1fr);
+    grid-template-columns: repeat(7, 1fr);
     position: fixed;
     bottom: 0;
     left: 0;

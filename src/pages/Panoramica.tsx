@@ -1,4 +1,5 @@
 import { projectGoal } from '../domain/goals';
+import { currentBalance, jointMonthSummary, personName } from '../domain/joint';
 import { formatEuro, percent } from '../domain/money';
 import { currentMonth, daysInMonth, monthLabel } from '../domain/month';
 import { categoryRows, summarizePlan, transactionsOfMonth } from '../domain/plan';
@@ -168,6 +169,8 @@ export function Panoramica() {
         </div>
       </div>
 
+      <JointCard month={month} />
+
       {goals.length > 0 && (
         <div className="card section-gap">
           <div className="card-head">
@@ -215,6 +218,10 @@ function Welcome() {
           <strong>Aggiungi le spese ricorrenti</strong> (abbonamenti, visite periodiche, assicurazioni): compariranno da sole nei mesi giusti.
         </li>
         <li>
+          <strong>Configura il <Link to="cointestato/impostazioni">conto cointestato</Link></strong>: come dividete le spese comuni, budget comune e spese
+          fisse come affitto e bollette.
+        </li>
+        <li>
           <strong>Crea il piano del mese</strong> e <strong>registra le spese</strong> con il pulsante "+ Spesa".
         </li>
         <li>
@@ -232,6 +239,59 @@ function Welcome() {
       <p className="small muted" style={{ marginBottom: 0 }}>
         I dati restano solo in questo browser. Puoi esportarli in qualsiasi momento dalle Impostazioni.
       </p>
+    </div>
+  );
+}
+
+/** Riepilogo del conto cointestato per il mese corrente. */
+function JointCard({ month }: { month: string }) {
+  const data = useData();
+  const joint = data.cointestato;
+  if (!joint.piani[month] && joint.movimenti.length === 0) return null;
+  const summary = jointMonthSummary(data, month);
+  const saldo = currentBalance(data, month);
+  const partner = personName(data, 'partner');
+  const da = summary.daRimborsare.io + summary.daRimborsare.partner;
+  return (
+    <div className="card section-gap">
+      <div className="card-head">
+        <h2>Conto cointestato</h2>
+        <Link className="small" to={`cointestato/mese/${month}`}>
+          Apri
+        </Link>
+      </div>
+      <div className="grid grid-3">
+        <div>
+          <div className="muted small">Saldo</div>
+          <strong className={saldo < 0 ? 'text-bad' : undefined} style={{ fontSize: '1.2rem' }}>
+            {formatEuro(saldo)}
+          </strong>
+        </div>
+        <div>
+          <div className="split small">
+            <span className="muted">Spese comuni</span>
+            <span>
+              {formatEuro(summary.speso)} / {formatEuro(summary.budget)}
+            </span>
+          </div>
+          <div style={{ marginTop: 6 }}>
+            <Meter value={summary.speso} max={summary.budget} label="Budget comune utilizzato" />
+          </div>
+        </div>
+        <div className="small">
+          {!summary.versamenti.partner.eseguito && summary.versamenti.partner.importo > 0 && (
+            <div>
+              Versamento di {partner}: <strong>{formatEuro(summary.versamenti.partner.importo)}</strong> da fare
+            </div>
+          )}
+          {da > 0 && (
+            <div>
+              Da rimborsare: <strong>{formatEuro(da)}</strong>
+            </div>
+          )}
+          {summary.versamenti.partner.eseguito && da === 0 && <div className="muted">Versamenti e rimborsi in ordine.</div>}
+        </div>
+      </div>
     </div>
   );
 }
