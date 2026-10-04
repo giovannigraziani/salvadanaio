@@ -1,5 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { emptyData, SCHEMA_VERSION } from '../domain/defaults';
+import { demoData } from '../domain/demo';
+import { currentMonth } from '../domain/month';
 import type { AppData } from '../domain/types';
 
 const STORAGE_KEY = 'salvadanaio:data';
@@ -28,6 +30,8 @@ function load(): AppData {
   } catch (error) {
     console.error('Impossibile leggere i dati salvati', error);
   }
+  // La versione di anteprima parte con i dati di esempio per mostrare subito l'app all'opera.
+  if (import.meta.env.VITE_AVVIO_DEMO === '1') return demoData(currentMonth(), new Date().getDate());
   return emptyData();
 }
 

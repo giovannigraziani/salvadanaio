@@ -7,7 +7,7 @@ import { currentMonth, dateLabel, monthLabel, today } from '../domain/month';
 import type { AppData, Goal, GoalType } from '../domain/types';
 import { addContribution, deleteContribution, deleteGoal, saveGoal } from '../store/actions';
 import { useData } from '../store/store';
-import { Field, IconButton, Meter, Modal, Money, MoneyInput, Stat } from '../ui/components';
+import { ConfirmButton, Field, IconButton, Meter, Modal, Money, MoneyInput, Stat } from '../ui/components';
 import { Icon } from '../ui/icons';
 
 const statusInfo: Record<GoalStatus, { label: string; tone: string }> = {
@@ -326,18 +326,17 @@ function GoalForm({ data, initial, onDone }: { data: AppData; initial: Goal; onD
         <div className="actions">
           {exists && (
             <>
-              <button
-                type="button"
+              <ConfirmButton
                 className="btn danger"
-                onClick={() => {
-                  if (confirm(`Eliminare "${g.nome}" e tutti i suoi versamenti?`)) {
-                    deleteGoal(g.id);
-                    onDone();
-                  }
+                question="Eliminare anche tutti i versamenti?"
+                confirmLabel="Elimina"
+                onConfirm={() => {
+                  deleteGoal(g.id);
+                  onDone();
                 }}
               >
                 Elimina
-              </button>
+              </ConfirmButton>
               <button
                 type="button"
                 className="btn"

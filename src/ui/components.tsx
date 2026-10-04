@@ -3,6 +3,7 @@ import { centsToInput, formatEuro, parseEuro } from '../domain/money';
 import { addMonths, monthLabel } from '../domain/month';
 import type { Cents, MonthKey } from '../domain/types';
 import { Icon, type IconName } from './icons';
+import { navigate } from './router';
 
 export function Money({ value, signed, className }: { value: Cents; signed?: boolean; className?: string }) {
   const text = formatEuro(value);
@@ -176,4 +177,71 @@ export function Segmented<T extends string | number>({
 
 export function CategoryDot({ color }: { color: string }) {
   return <span className="dot" style={{ background: color }} aria-hidden />;
+}
+
+/** Link interno: aggiorna la rotta senza ricaricare la pagina. */
+export function Link({ to, className, children }: { to: string; className?: string; children: ReactNode }) {
+  return (
+    <a
+      href={`#/${to}`}
+      className={className}
+      onClick={(e) => {
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+        e.preventDefault();
+        navigate(to);
+      }}
+    >
+      {children}
+    </a>
+  );
+}
+
+/**
+ * Pulsante per azioni distruttive o importanti: il primo clic chiede conferma nella pagina stessa,
+ * il secondo esegue. Torna allo stato iniziale dopo qualche secondo.
+ */
+export function ConfirmButton({
+  children,
+  question,
+  confirmLabel = 'Conferma',
+  onConfirm,
+  className = 'btn',
+}: {
+  children: ReactNode;
+  question: string;
+  confirmLabel?: string;
+  onConfirm: () => void;
+  className?: string;
+}) {
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!armed) return;
+    const timer = setTimeout(() => setArmed(false), 6000);
+    return () => clearTimeout(timer);
+  }, [armed]);
+  if (!armed)
+    return (
+      <button type="button" className={className} onClick={() => setArmed(true)}>
+        {children}
+      </button>
+    );
+  return (
+    <span className="confirm" role="group" aria-label={question}>
+      <span className="small">{question}</span>
+      <button
+        type="button"
+        className="btn small danger"
+        autoFocus
+        onClick={() => {
+          setArmed(false);
+          onConfirm();
+        }}
+      >
+        {confirmLabel}
+      </button>
+      <button type="button" className="btn small ghost" onClick={() => setArmed(false)}>
+        Annulla
+      </button>
+    </span>
+  );
 }

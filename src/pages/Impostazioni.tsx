@@ -22,7 +22,7 @@ import {
   updateSettings,
 } from '../store/actions';
 import { getState, useData } from '../store/store';
-import { CategoryDot, Field, IconButton, Modal, MoneyInput, Notice, Segmented } from '../ui/components';
+import { CategoryDot, ConfirmButton, Field, IconButton, Modal, MoneyInput, Notice, Segmented } from '../ui/components';
 import { IncomeEditor, TransferEditor } from '../ui/editors';
 import { Icon } from '../ui/icons';
 import { getTheme, setTheme, type ThemeChoice } from '../ui/theme';
@@ -245,18 +245,17 @@ function RecurringForm({ data, initial, onDone }: { data: AppData; initial: Recu
       <div className="modal-foot">
         <div>
           {exists && (
-            <button
-              type="button"
+            <ConfirmButton
               className="btn danger"
-              onClick={() => {
-                if (confirm(`Eliminare "${r.descrizione}"? Le spese già nei piani restano.`)) {
-                  deleteRecurring(r.id);
-                  onDone();
-                }
+              question="Eliminare? Le spese già nei piani restano."
+              confirmLabel="Elimina"
+              onConfirm={() => {
+                deleteRecurring(r.id);
+                onDone();
               }}
             >
               Elimina
-            </button>
+            </ConfirmButton>
           )}
         </div>
         <div className="actions">
@@ -368,7 +367,9 @@ function AccountsSection({ data }: { data: AppData }) {
                 </option>
               ))}
             </select>
-            <IconButton icon="trash" label={`Elimina ${a.nome}`} onClick={() => confirm(`Eliminare il conto "${a.nome}"?`) && deleteAccount(a.id)} />
+            <ConfirmButton className="btn ghost icon" question="Eliminare il conto?" confirmLabel="Elimina" onConfirm={() => deleteAccount(a.id)}>
+              <Icon name="trash" title={`Elimina ${a.nome}`} />
+            </ConfirmButton>
           </div>
         ))}
       </div>
@@ -442,6 +443,9 @@ function transactionsCsv(data: AppData): string {
   return ['data;descrizione;categoria;importo;tipo;note', ...rows].join('\n');
 }
 
+// L'anteprima incorporata non può scaricare file: lì resta solo "Copia backup".
+const canDownload = import.meta.env.VITE_AVVIO_DEMO !== '1';
+
 function DataSection() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState<{ kind: 'good' | 'bad'; text: string } | null>(null);
@@ -455,15 +459,31 @@ function DataSection() {
         </div>
       </div>
       <div className="actions">
-        <button type="button" className="btn" onClick={() => download(`salvadanaio-backup-${stamp}.json`, exportJson(), 'application/json')}>
-          <Icon name="download" /> Esporta backup
-        </button>
-        <button type="button" className="btn" onClick={() => fileRef.current?.click()}>
+        {canDownload && (
+          <button type="button" className="btn" onClick={() => download(`salvadanaio-backup-${stamp}.json`, exportJson(), 'application/json')}>
+            <Icon name="download" /> Esporta backup
+          </button>
+        )}
+        <ConfirmButton question="I dati attuali verranno sostituiti." confirmLabel="Scegli file" onConfirm={() => fileRef.current?.click()}>
           <Icon name="upload" /> Importa backup
+        </ConfirmButton>
+        <button
+          type="button"
+          className="btn"
+          onClick={() =>
+            navigator.clipboard.writeText(exportJson()).then(
+              () => setMessage({ kind: 'good', text: 'Backup copiato negli appunti: incollalo in un file .json per conservarlo.' }),
+              () => setMessage({ kind: 'bad', text: 'Il browser non consente di copiare: usa "Esporta backup".' }),
+            )
+          }
+        >
+          <Icon name="copy" /> Copia backup
         </button>
-        <button type="button" className="btn" onClick={() => download(`salvadanaio-spese-${stamp}.csv`, transactionsCsv(getState()), 'text/csv')}>
-          <Icon name="download" /> Spese in CSV
-        </button>
+        {canDownload && (
+          <button type="button" className="btn" onClick={() => download(`salvadanaio-spese-${stamp}.csv`, transactionsCsv(getState()), 'text/csv')}>
+            <Icon name="download" /> Spese in CSV
+          </button>
+        )}
         <input
           ref={fileRef}
           type="file"
@@ -473,7 +493,6 @@ function DataSection() {
             const file = e.target.files?.[0];
             e.target.value = '';
             if (!file) return;
-            if (!confirm('Importare il backup? I dati attuali verranno sostituiti.')) return;
             try {
               importJson(await file.text());
               setMessage({ kind: 'good', text: 'Backup importato.' });
@@ -484,12 +503,12 @@ function DataSection() {
         />
       </div>
       <div className="actions section-gap">
-        <button type="button" className="btn" onClick={() => confirm('Caricare i dati di esempio? I dati attuali verranno sostituiti.') && loadDemo()}>
+        <ConfirmButton question="I dati attuali verranno sostituiti." confirmLabel="Carica" onConfirm={loadDemo}>
           Carica dati di esempio
-        </button>
-        <button type="button" className="btn danger" onClick={() => confirm('Cancellare tutti i dati? Operazione irreversibile.') && resetAll()}>
+        </ConfirmButton>
+        <ConfirmButton className="btn danger" question="Cancellare tutti i dati? Non si può annullare." confirmLabel="Cancella" onConfirm={resetAll}>
           <Icon name="trash" /> Cancella tutto
-        </button>
+        </ConfirmButton>
       </div>
       {message && (
         <div className="section-gap">

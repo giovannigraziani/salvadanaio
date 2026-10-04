@@ -5,7 +5,7 @@ import { monthOfDate, today } from '../domain/month';
 import type { Transaction } from '../domain/types';
 import { deleteTransaction, saveTransaction } from '../store/actions';
 import { useData } from '../store/store';
-import { Field, Modal, MoneyInput } from './components';
+import { ConfirmButton, Field, Modal, MoneyInput } from './components';
 
 export function blankTransaction(partial: Partial<Transaction> = {}): Transaction {
   return { id: newId(), data: today(), descrizione: '', categoriaId: '', importo: 0, ...partial };
@@ -100,18 +100,17 @@ function TransactionForm({ initial, onDone }: { initial: Transaction; onDone: ()
       <div className="modal-foot">
         <div>
           {!isNew && (
-            <button
-              type="button"
+            <ConfirmButton
               className="btn danger"
-              onClick={() => {
-                if (confirm('Eliminare questa spesa?')) {
-                  deleteTransaction(tx.id);
-                  onDone();
-                }
+              question="Eliminare la spesa?"
+              confirmLabel="Elimina"
+              onConfirm={() => {
+                deleteTransaction(tx.id);
+                onDone();
               }}
             >
               Elimina
-            </button>
+            </ConfirmButton>
           )}
         </div>
         <div className="actions">

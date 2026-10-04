@@ -20,6 +20,7 @@ export function demoData(now: MonthKey, todayDay: number): AppData {
   const start = addMonths(now, -3);
 
   data.settings.nome = 'Demo';
+  data.settings.datiDiEsempio = true;
   data.conti.push({ id: 'investimenti', nome: 'Conto titoli', tipo: 'investimenti' });
   data.modello = {
     entrate: [{ descrizione: 'Stipendio', importo: euro(2100) }],

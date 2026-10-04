@@ -19,7 +19,7 @@ import {
 } from '../store/actions';
 import { useData } from '../store/store';
 import { FlowBar } from '../ui/charts';
-import { CategoryDot, Field, IconButton, Meter, Modal, Money, MoneyInput, MonthSwitcher, Notice, Stat } from '../ui/components';
+import { CategoryDot, ConfirmButton, Field, IconButton, Link, Meter, Modal, Money, MoneyInput, MonthSwitcher, Notice, Stat } from '../ui/components';
 import { IncomeEditor, TransferEditor } from '../ui/editors';
 import { Icon } from '../ui/icons';
 import { navigate } from '../ui/router';
@@ -62,9 +62,9 @@ function NoPlan({ data, month }: { data: AppData; month: MonthKey }) {
             <Icon name="copy" /> Copia da {monthLabel(addMonths(month, -1))}
           </button>
         )}
-        <a className="btn" href="#/impostazioni">
+        <Link className="btn" to="impostazioni">
           Modifica modello
-        </a>
+        </Link>
       </div>
     </div>
   );
@@ -110,12 +110,12 @@ function PlanView({ data, plan }: { data: AppData; plan: MonthPlan }) {
             <p>Ripartizione teorica delle entrate di {monthLabel(month).toLowerCase()}.</p>
           </div>
           <div className="actions">
-            <button type="button" className="btn small" onClick={() => confirm('Usare questo piano come modello per i prossimi mesi?') && saveAsTemplate(month)}>
+            <ConfirmButton className="btn small" question="Usarlo per i prossimi mesi?" confirmLabel="Salva" onConfirm={() => saveAsTemplate(month)}>
               Salva come modello
-            </button>
-            <button type="button" className="btn small danger" onClick={() => confirm(`Eliminare il piano di ${monthLabel(month)}? Le spese registrate restano.`) && deletePlan(month)}>
+            </ConfirmButton>
+            <ConfirmButton className="btn small danger" question="Le spese registrate restano." confirmLabel="Elimina piano" onConfirm={() => deletePlan(month)}>
               Elimina piano
-            </button>
+            </ConfirmButton>
           </div>
         </div>
         <FlowBar segments={flow} total={summary.entrate} />

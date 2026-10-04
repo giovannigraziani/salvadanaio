@@ -4,7 +4,7 @@ import { currentMonth, daysInMonth, monthLabel } from '../domain/month';
 import { categoryRows, summarizePlan, transactionsOfMonth } from '../domain/plan';
 import { createMonthPlan, loadDemo, payPlanned, setTransferDone } from '../store/actions';
 import { useData } from '../store/store';
-import { CategoryDot, Meter, Money, Notice, Stat } from '../ui/components';
+import { CategoryDot, Link, Meter, Money, Notice, Stat } from '../ui/components';
 import { Icon } from '../ui/icons';
 import { useOpenTransaction } from '../ui/quickAdd';
 
@@ -85,9 +85,9 @@ export function Panoramica() {
         <div className="card">
           <div className="card-head">
             <h2>Da fare questo mese</h2>
-            <a className="small" href={`#/piano/${month}`}>
+            <Link className="small" to={`piano/${month}`}>
               Apri il piano
-            </a>
+            </Link>
           </div>
           {pendingTransfers.length === 0 && upcoming.length === 0 ? (
             <p className="muted">Tutto in ordine: nessuna quota o spesa prevista in sospeso.</p>
@@ -132,9 +132,9 @@ export function Panoramica() {
         <div className="card">
           <div className="card-head">
             <h2>Categorie da tenere d'occhio</h2>
-            <a className="small" href="#/analisi">
+            <Link className="small" to="analisi">
               Analisi
-            </a>
+            </Link>
           </div>
           {atRisk.length === 0 && noBudget.length === 0 ? (
             <p className="muted">Nessuna categoria vicina al limite del budget.</p>
@@ -172,9 +172,9 @@ export function Panoramica() {
         <div className="card section-gap">
           <div className="card-head">
             <h2>Obiettivi</h2>
-            <a className="small" href="#/obiettivi">
+            <Link className="small" to="obiettivi">
               Tutti gli obiettivi
-            </a>
+            </Link>
           </div>
           <div className="grid grid-2">
             {goals.slice(0, 4).map((g) => {
@@ -208,7 +208,7 @@ function Welcome() {
       <p className="muted">Uno strumento per dare a ogni euro dello stipendio un compito, e poi verificare come è andata.</p>
       <ol style={{ paddingLeft: 20, lineHeight: 1.7 }}>
         <li>
-          <strong>Imposta il modello mensile</strong> in <a href="#/impostazioni">Impostazioni</a>: stipendio, quanto versi sul conto cointestato e sui
+          <strong>Imposta il modello mensile</strong> in <Link to="impostazioni">Impostazioni</Link>: stipendio, quanto versi sul conto cointestato e sui
           risparmi, budget per categoria.
         </li>
         <li>
@@ -222,9 +222,9 @@ function Welcome() {
         </li>
       </ol>
       <div className="actions">
-        <a className="btn primary" href="#/impostazioni">
+        <Link className="btn primary" to="impostazioni">
           Inizia dal modello
-        </a>
+            </Link>
         <button type="button" className="btn" onClick={loadDemo}>
           Esplora con dati di esempio
         </button>

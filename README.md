@@ -11,6 +11,7 @@ npm install
 npm run dev        # sviluppo su http://localhost:5173
 npm test           # test della logica di dominio (vitest)
 npm run build      # typecheck + build statica in dist/
+npm run build:anteprima  # un unico file HTML con dati di esempio (dist-anteprima/)
 ```
 
 La build è statica e usa percorsi relativi: `dist/` si può pubblicare così com'è (GitHub Pages, Netlify, una cartella qualsiasi). Su telefono si può aggiungere alla schermata Home.

@@ -143,6 +143,8 @@ export interface Settings {
   nome?: string;
   /** Giorno del mese in cui arriva lo stipendio. */
   giornoStipendio: number;
+  /** true se i dati sono quelli di esempio. */
+  datiDiEsempio?: boolean;
 }
 
 export interface AppData {

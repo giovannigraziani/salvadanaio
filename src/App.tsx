@@ -8,10 +8,11 @@ import { Obiettivi } from './pages/Obiettivi';
 import { Panoramica } from './pages/Panoramica';
 import { Piano } from './pages/Piano';
 import { getSaveError, useData } from './store/store';
-import { Notice } from './ui/components';
+import { resetAll } from './store/actions';
+import { ConfirmButton, Notice } from './ui/components';
 import { Icon, type IconName } from './ui/icons';
 import { QuickAddContext } from './ui/quickAdd';
-import { useRoute } from './ui/router';
+import { navigate, useRoute } from './ui/router';
 import { blankTransaction, TransactionModal } from './ui/TransactionForm';
 
 const sections: { path: string; label: string; short: string; icon: IconName }[] = [
@@ -27,7 +28,17 @@ function NavLinks({ current, short }: { current: string; short?: boolean }) {
   return (
     <>
       {sections.map((s) => (
-        <a key={s.path} href={`#/${s.path}`} className={`nav-link ${current === s.path ? 'active' : ''}`} aria-current={current === s.path ? 'page' : undefined}>
+        <a
+          key={s.path}
+          href={`#/${s.path}`}
+          className={`nav-link ${current === s.path ? 'active' : ''}`}
+          aria-current={current === s.path ? 'page' : undefined}
+          onClick={(e) => {
+            if (e.metaKey || e.ctrlKey || e.shiftKey) return;
+            e.preventDefault();
+            navigate(s.path);
+          }}
+        >
           <Icon name={s.icon} />
           {short ? s.short : s.label}
         </a>
@@ -37,7 +48,7 @@ function NavLinks({ current, short }: { current: string; short?: boolean }) {
 }
 
 export function App() {
-  useData(); // ri-renderizza a ogni modifica dei dati
+  const data = useData();
   const [section = '', param] = useRoute();
   const [editing, setEditing] = useState<Transaction | null>(null);
   const openTransaction = (partial?: Partial<Transaction>) => setEditing(blankTransaction(partial));
@@ -77,6 +88,16 @@ export function App() {
         </nav>
         <main className="main">
           {saveError && <Notice kind="bad">{saveError}</Notice>}
+          {data.settings.datiDiEsempio && (
+            <div className="demo-banner">
+              <Notice>
+                Stai guardando <strong>dati di esempio</strong>: prova pure a modificarli.{' '}
+                <ConfirmButton className="btn small" question="Cancellare i dati di esempio?" confirmLabel="Inizia da zero" onConfirm={resetAll}>
+                  Inizia con i tuoi dati
+                </ConfirmButton>
+              </Notice>
+            </div>
+          )}
           {page}
         </main>
         <nav className="bottom-nav" aria-label="Sezioni">
