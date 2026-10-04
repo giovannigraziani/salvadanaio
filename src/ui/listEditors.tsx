@@ -2,9 +2,9 @@ import { useState, type FormEvent } from 'react';
 import { palette } from '../domain/defaults';
 import { newId } from '../domain/id';
 import { formatEuro, sum } from '../domain/money';
-import { currentMonth, monthLabel } from '../domain/month';
-import { frequencyLabels, monthlyEquivalent } from '../domain/recurring';
-import type { Category, Frequency, ID, Recurring } from '../domain/types';
+import { addMonths, currentMonth, dateLabel, today } from '../domain/month';
+import { frequencyKey, frequencyOptions, monthlyEquivalent, occurrencesInMonth, scheduleLabel } from '../domain/schedule';
+import type { Category, ID, Recurring } from '../domain/types';
 import { CategoryDot, ConfirmButton, Field, IconButton, Modal, MoneyInput, Notice } from './components';
 import { Icon } from './icons';
 
@@ -16,8 +16,8 @@ function blankRecurring(categorie: Category[]): Recurring {
     descrizione: '',
     categoriaId: categorie.find((c) => !c.archiviata)?.id ?? '',
     importo: 0,
-    frequenza: 1,
-    meseInizio: currentMonth(),
+    ripetizione: { tipo: 'mesi', ogni: 1 },
+    inizio: today(),
     attiva: true,
   };
 }
@@ -59,7 +59,7 @@ export function RecurringSection(props: RecurringSectionProps) {
       ) : (
         <ul className="list">
           {[...ricorrenze]
-            .sort((a, b) => Number(b.attiva) - Number(a.attiva) || b.importo / b.frequenza - a.importo / a.frequenza)
+            .sort((a, b) => Number(b.attiva) - Number(a.attiva) || monthlyEquivalent(b) - monthlyEquivalent(a))
             .map((r) => {
               const c = categories.get(r.categoriaId);
               return (
@@ -68,14 +68,14 @@ export function RecurringSection(props: RecurringSectionProps) {
                   <div className="grow">
                     <div className="title">{r.descrizione}</div>
                     <div className="sub">
-                      {frequencyLabels[r.frequenza]} da {monthLabel(r.meseInizio).toLowerCase()}
-                      {r.meseFine ? ` a ${monthLabel(r.meseFine).toLowerCase()}` : ''} · {c?.nome}
+                      {scheduleLabel(r)} · {c?.nome}
+                      {r.fine ? ` · fino al ${dateLabel(r.fine)} ${r.fine.slice(0, 4)}` : ''}
                       {!r.attiva && ' · in pausa'}
                     </div>
                   </div>
                   <div className="num">
                     <strong>{formatEuro(r.importo)}</strong>
-                    {r.frequenza > 1 && <div className="small muted">{formatEuro(monthlyEquivalent(r))}/mese</div>}
+                    {monthlyEquivalent(r) !== r.importo && <div className="small muted">{formatEuro(monthlyEquivalent(r))}/mese</div>}
                   </div>
                   <IconButton icon="edit" label={`Modifica ${r.descrizione}`} onClick={() => setEditing(r)} />
                 </li>
@@ -118,22 +118,26 @@ function RecurringForm({
           <MoneyInput value={r.importo} onChange={(importo) => set({ importo })} />
         </Field>
         <Field label="Frequenza">
-          <select className="input" value={r.frequenza} onChange={(e) => set({ frequenza: Number(e.target.value) as Frequency })}>
-            {Object.entries(frequencyLabels).map(([v, label]) => (
-              <option key={v} value={v}>
-                {label}
+          <select
+            className="input"
+            value={frequencyKey(r.ripetizione)}
+            onChange={(e) => set({ ripetizione: frequencyOptions.find((o) => o.key === e.target.value)!.ripetizione })}
+          >
+            {frequencyOptions.map((o) => (
+              <option key={o.key} value={o.key}>
+                {o.label}
               </option>
             ))}
           </select>
         </Field>
-        <Field label="Primo mese">
-          <input className="input" type="month" required value={r.meseInizio} onChange={(e) => set({ meseInizio: e.target.value })} />
+        <Field
+          label="Prima data"
+          hint={r.ripetizione.tipo === 'settimane' ? 'Fissa il giorno della settimana (es. un giovedì)' : 'Fissa il giorno del mese'}
+        >
+          <input className="input" type="date" required value={r.inizio} onChange={(e) => e.target.value && set({ inizio: e.target.value })} />
         </Field>
-        <Field label="Ultimo mese" hint="Facoltativo, es. fine di una rata">
-          <input className="input" type="month" value={r.meseFine ?? ''} onChange={(e) => set({ meseFine: e.target.value || undefined })} />
-        </Field>
-        <Field label="Giorno di addebito">
-          <input className="input" type="number" min={1} max={31} value={r.giorno ?? ''} onChange={(e) => set({ giorno: e.target.value ? Number(e.target.value) : undefined })} />
+        <Field label="Fino al" hint="Facoltativo, es. fine di una rata o di una terapia">
+          <input className="input" type="date" min={r.inizio} value={r.fine ?? ''} onChange={(e) => set({ fine: e.target.value || undefined })} />
         </Field>
         <Field label="Categoria">
           <select className="input" value={r.categoriaId} onChange={(e) => set({ categoriaId: e.target.value })}>
@@ -146,6 +150,16 @@ function RecurringForm({
               ))}
           </select>
         </Field>
+        <div className="full small muted">
+          {scheduleLabel(r)}. Prossime date:{' '}
+          {[0, 1, 2]
+            .flatMap((i) => occurrencesInMonth({ ...r, attiva: true }, addMonths(currentMonth(), i)))
+            .filter((d) => d >= today())
+            .slice(0, 5)
+            .map((d) => dateLabel(d))
+            .join(', ') || 'nessuna nei prossimi tre mesi'}
+          .
+        </div>
         <label className="check full">
           <input type="checkbox" checked={r.attiva} onChange={(e) => set({ attiva: e.target.checked })} />
           Attiva

@@ -1,35 +1,22 @@
 import { useSyncExternalStore } from 'react';
-import { emptyData, emptyJointData, SCHEMA_VERSION } from '../domain/defaults';
+import { emptyData, SCHEMA_VERSION } from '../domain/defaults';
 import { demoData } from '../domain/demo';
-import { currentMonth } from '../domain/month';
+import { migrate } from '../domain/migrate';
+import { currentMonth, today } from '../domain/month';
 import type { AppData } from '../domain/types';
 
 const STORAGE_KEY = 'salvadanaio:data';
 
-/** Porta dati salvati con versioni precedenti allo schema attuale. */
-export function migrate(raw: unknown): AppData {
-  if (!raw || typeof raw !== 'object') throw new Error('Formato dati non valido');
-  const data = raw as Partial<AppData>;
-  if (typeof data.version !== 'number' || data.version > SCHEMA_VERSION)
-    throw new Error('Versione dei dati non supportata');
-  const base = emptyData();
-  // Versione 1 → 2: aggiunta la sezione del conto cointestato.
-  const jointBase = emptyJointData();
-  const joint = data.cointestato ?? jointBase;
-  return {
-    ...base,
-    ...data,
-    settings: { ...base.settings, ...data.settings },
-    modello: { ...base.modello, ...data.modello },
-    cointestato: { ...jointBase, ...joint, impostazioni: { ...jointBase.impostazioni, ...joint.impostazioni } },
-    version: SCHEMA_VERSION,
-  } as AppData;
-}
-
 function load(): AppData {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) return migrate(JSON.parse(stored));
+    if (stored) {
+      const raw = JSON.parse(stored) as { version?: number };
+      // Prima di convertire dati di una versione precedente ne conserva una copia intatta.
+      if (typeof raw.version === 'number' && raw.version < SCHEMA_VERSION)
+        localStorage.setItem(`${STORAGE_KEY}:v${raw.version}`, stored);
+      return migrate(raw);
+    }
   } catch (error) {
     console.error('Impossibile leggere i dati salvati', error);
   }
@@ -74,6 +61,7 @@ export function replaceState(next: AppData) {
 export function mutate(recipe: (draft: AppData) => void) {
   const draft = structuredClone(state);
   recipe(draft);
+  draft.settings.primoUtilizzo ??= today();
   replaceState(draft);
 }
 

@@ -1,11 +1,13 @@
-import { projectGoal } from '../domain/goals';
-import { currentBalance, jointMonthSummary, personName } from '../domain/joint';
-import { formatEuro, percent } from '../domain/money';
-import { currentMonth, daysInMonth, monthLabel } from '../domain/month';
-import { categoryRows, summarizePlan, transactionsOfMonth } from '../domain/plan';
+import { accountTypeLabels } from '../domain/defaults';
+import { goalSaved, projectGoal } from '../domain/goals';
+import { activeAccounts, byDate, categoryRows, currentBalance, summarizePlan, transactionsOfMonth } from '../domain/ledger';
+import { formatEuro, sum } from '../domain/money';
+import { currentMonth, dateLabel, dayNumber, monthLabel, today } from '../domain/month';
+import type { Account, AppData } from '../domain/types';
 import { createMonthPlan, loadDemo, payPlanned, setTransferDone } from '../store/actions';
 import { useData } from '../store/store';
-import { CategoryDot, Link, Meter, Money, Notice, Stat } from '../ui/components';
+import { BackupReminder } from '../ui/BackupReminder';
+import { CategoryDot, Link, Meter, Money, Stat } from '../ui/components';
 import { Icon } from '../ui/icons';
 import { useOpenTransaction } from '../ui/quickAdd';
 
@@ -13,163 +15,48 @@ export function Panoramica() {
   const data = useData();
   const openTransaction = useOpenTransaction();
   const month = currentMonth();
-  const plan = data.piani[month];
-  const tx = transactionsOfMonth(data.movimenti, month);
-  const isEmpty = Object.keys(data.piani).length === 0 && data.movimenti.length === 0;
-
+  const accounts = activeAccounts(data);
+  const isEmpty = accounts.every((a) => Object.keys(a.piani).length === 0 && a.movimenti.length === 0);
   if (isEmpty) return <Welcome />;
 
-  const summary = plan ? summarizePlan(plan, tx) : undefined;
-  const rows = categoryRows(plan, tx, data.categorie);
-  const atRisk = rows.filter((r) => r.budget > 0 && r.utilizzo >= 85).sort((a, b) => b.utilizzo - a.utilizzo);
-  const noBudget = rows.filter((r) => r.budget === 0 && r.speso > 0);
-  const daysLeft = daysInMonth(month) - new Date().getDate() + 1;
-  const upcoming = (plan?.spesePreviste ?? []).filter((p) => !p.movimentoId).sort((a, b) => (a.giorno ?? 99) - (b.giorno ?? 99));
-  const pendingTransfers = (plan?.trasferimenti ?? []).filter((t) => !t.eseguito && t.importo > 0);
+  const now = today();
+  const balances = accounts.map((a) => currentBalance(data, a, month, now));
+  const personal = accounts.filter((a) => a.tipo === 'personale');
+  const entrate = sum(personal, (a) => sum(a.piani[month]?.entrate ?? [], (e) => e.importo));
+  const speso = sum(accounts, (a) => sum(transactionsOfMonth(a.movimenti, month), (t) => t.importo));
   const goals = data.obiettivi.filter((g) => !g.archiviato).sort((a, b) => a.priorita - b.priorita);
-  const saved = summary ? summary.trasferimenti : 0;
 
   return (
     <>
       <div className="page-head">
         <div>
           <h1>{data.settings.nome ? `Ciao ${data.settings.nome}` : 'Panoramica'}</h1>
-          <p>{monthLabel(month)}</p>
+          <p>{monthLabel(month)} · tutti i conti</p>
         </div>
         <button type="button" className="btn primary" onClick={() => openTransaction()}>
           <Icon name="plus" /> Registra spesa
         </button>
       </div>
 
-      {!plan && (
-        <div className="card">
-          <Notice kind="warn">
-            Non hai ancora un piano per {monthLabel(month).toLowerCase()}.{' '}
-            <button type="button" className="btn small" onClick={() => createMonthPlan(month)}>
-              Crealo dal modello
-            </button>
-          </Notice>
-        </div>
-      )}
+      <BackupReminder />
 
-      {summary && (
-        <div className="grid grid-2">
-          <div className="card">
-            <div className="muted small">Puoi ancora spendere questo mese</div>
-            <div className={`hero-value ${summary.residuo < 0 ? 'text-bad' : ''}`}>{formatEuro(summary.residuo)}</div>
-            <div className="small muted" style={{ margin: '4px 0 12px' }}>
-              {summary.residuo > 0
-                ? `circa ${formatEuro(Math.floor(summary.residuo / daysLeft))} al giorno per ${daysLeft} giorni`
-                : 'Budget del mese esaurito'}
-            </div>
-            <Meter value={summary.speso} max={summary.budget} label="Budget utilizzato" />
-            <div className="split small" style={{ marginTop: 8 }}>
-              <span className="muted">Speso {formatEuro(summary.speso)}</span>
-              <span className="muted">Budget {formatEuro(summary.budget)}</span>
-            </div>
-            {summary.previsteDaPagare > 0 && (
-              <p className="small" style={{ marginBottom: 0 }}>
-                Di questo residuo, <strong>{formatEuro(summary.previsteDaPagare)}</strong> sono già impegnati in spese previste.
-              </p>
-            )}
-          </div>
-          <div className="grid grid-2 keep">
-            <Stat label="Entrate del mese" value={<Money value={summary.entrate} />} />
-            <Stat label="Quote versate" value={<Money value={summary.trasferimentiEseguiti} />} hint={`su ${formatEuro(saved)} previste`} />
-            <Stat label="Spese pianificate" value={<Money value={summary.spesoPianificato} />} hint={`${percent(summary.spesoPianificato, summary.speso)}% dello speso`} />
-            <Stat label="Spese estemporanee" value={<Money value={summary.spesoEstemporaneo} />} hint={`${percent(summary.spesoEstemporaneo, summary.speso)}% dello speso`} />
-          </div>
-        </div>
-      )}
-
-      <div className="grid grid-2 section-gap">
-        <div className="card">
-          <div className="card-head">
-            <h2>Da fare questo mese</h2>
-            <Link className="small" to={`piano/${month}`}>
-              Apri il piano
-            </Link>
-          </div>
-          {pendingTransfers.length === 0 && upcoming.length === 0 ? (
-            <p className="muted">Tutto in ordine: nessuna quota o spesa prevista in sospeso.</p>
-          ) : (
-            <ul className="list">
-              {pendingTransfers.map((t) => (
-                <li key={t.id} className="list-item wrap-mobile">
-                  <Icon name="up" />
-                  <div className="grow">
-                    <div className="title">{t.descrizione}</div>
-                    <div className="sub">Quota da versare</div>
-                  </div>
-                  <strong className="num">{formatEuro(t.importo)}</strong>
-                  <button type="button" className="btn small" onClick={() => setTransferDone(month, t.id, true)}>
-                    Versata
-                  </button>
-                </li>
-              ))}
-              {upcoming.slice(0, 6).map((p) => {
-                const categoria = data.categorie.find((c) => c.id === p.categoriaId);
-                return (
-                  <li key={p.id} className="list-item wrap-mobile">
-                    <CategoryDot color={categoria?.colore ?? 'var(--axis)'} />
-                    <div className="grow">
-                      <div className="title">{p.descrizione}</div>
-                      <div className="sub">
-                        {p.giorno ? `Giorno ${p.giorno} · ` : ''}
-                        {categoria?.nome}
-                      </div>
-                    </div>
-                    <strong className="num">{formatEuro(p.importo)}</strong>
-                    <button type="button" className="btn small" onClick={() => payPlanned(month, p.id)}>
-                      Pagata
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </div>
-
-        <div className="card">
-          <div className="card-head">
-            <h2>Categorie da tenere d'occhio</h2>
-            <Link className="small" to="analisi">
-              Analisi
-            </Link>
-          </div>
-          {atRisk.length === 0 && noBudget.length === 0 ? (
-            <p className="muted">Nessuna categoria vicina al limite del budget.</p>
-          ) : (
-            <ul className="list">
-              {atRisk.map((r) => (
-                <li key={r.categoria.id} className="list-item">
-                  <CategoryDot color={r.categoria.colore} />
-                  <div className="grow">
-                    <div className="split">
-                      <span className="title">{r.categoria.nome}</span>
-                      <span className={`small ${r.residuo < 0 ? 'text-bad' : ''}`}>
-                        {r.residuo < 0 ? `sforato di ${formatEuro(-r.residuo)}` : `restano ${formatEuro(r.residuo)}`}
-                      </span>
-                    </div>
-                    <Meter value={r.speso} max={r.budget} label={`Budget ${r.categoria.nome}`} />
-                  </div>
-                </li>
-              ))}
-              {noBudget.map((r) => (
-                <li key={r.categoria.id} className="list-item">
-                  <CategoryDot color={r.categoria.colore} />
-                  <div className="grow">
-                    <div className="title">{r.categoria.nome}</div>
-                    <div className="sub">Spesi {formatEuro(r.speso)} senza budget</div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+      <div className="grid grid-4">
+        <Stat label="Saldo totale stimato" value={<Money value={sum(balances, (b) => b)} />} hint={`su ${accounts.length} conti`} />
+        <Stat label="Entrate del mese" value={<Money value={entrate} />} hint="Stipendi ed entrate dei conti personali" />
+        <Stat label="Speso questo mese" value={<Money value={speso} />} hint="Tutti i conti" />
+        <Stat label="Negli obiettivi" value={<Money value={sum(goals, goalSaved)} />} hint={`${goals.length} obiettivi attivi`} />
       </div>
 
-      <JointCard month={month} />
+      <div className="grid grid-2 section-gap">
+        {accounts.map((a, i) => (
+          <AccountCard key={a.id} data={data} account={a} balance={balances[i]!} />
+        ))}
+      </div>
+
+      <div className="grid grid-2 section-gap">
+        <Todo data={data} />
+        <Watchlist data={data} />
+      </div>
 
       {goals.length > 0 && (
         <div className="card section-gap">
@@ -204,34 +91,187 @@ export function Panoramica() {
   );
 }
 
+function AccountCard({ data, account, balance }: { data: AppData; account: Account; balance: number }) {
+  const month = currentMonth();
+  const plan = account.piani[month];
+  const s = summarizePlan(data, account, month);
+  const pendingOut = (plan?.trasferimenti ?? []).filter((t) => !t.eseguito && t.importo > 0).length;
+  const pendingIn = s.inArrivo - s.inArrivoRicevuti;
+  const toPay = (plan?.spesePreviste ?? []).filter((p) => !p.movimentoId).length;
+  return (
+    <div className="card">
+      <div className="card-head">
+        <div>
+          <div className="account-head">
+            <h2>{account.nome}</h2>
+            <span className="badge">{accountTypeLabels[account.tipo]}</span>
+          </div>
+          <p>
+            Saldo stimato <strong className={balance < 0 ? 'text-bad' : undefined}>{formatEuro(balance)}</strong>
+          </p>
+        </div>
+        <Link className="btn small" to={`conto/${account.id}/piano/${month}`}>
+          Apri
+        </Link>
+      </div>
+      {!plan ? (
+        <div className="actions">
+          <span className="muted small">Nessun piano per questo mese.</span>
+          <button type="button" className="btn small" onClick={() => createMonthPlan(account.id, month)}>
+            Crea dal modello
+          </button>
+        </div>
+      ) : (
+        <>
+          {s.budget > 0 && (
+            <>
+              <div className="split small">
+                <span className="muted">Speso</span>
+                <span>
+                  {formatEuro(s.speso)} / {formatEuro(s.budget)}
+                </span>
+              </div>
+              <div style={{ margin: '6px 0 10px' }}>
+                <Meter value={s.speso} max={s.budget} label={`Budget ${account.nome}`} />
+              </div>
+            </>
+          )}
+          <div className="small">
+            {pendingOut > 0 && <div>{pendingOut === 1 ? '1 quota da versare' : `${pendingOut} quote da versare`}</div>}
+            {pendingIn > 0 && <div>{formatEuro(pendingIn)} in arrivo da altri conti</div>}
+            {toPay > 0 && <div>{toPay === 1 ? '1 spesa prevista da pagare' : `${toPay} spese previste da pagare`}</div>}
+            {s.daRimborsare > 0 && <div className="text-bad">{formatEuro(s.daRimborsare)} da rimborsare</div>}
+            {pendingOut === 0 && pendingIn === 0 && toPay === 0 && s.daRimborsare === 0 && <div className="muted">Tutto in ordine questo mese.</div>}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Quote da versare e spese previste dei prossimi giorni, su tutti i conti. */
+function Todo({ data }: { data: AppData }) {
+  const month = currentMonth();
+  const horizon = dayNumber(today()) + 10;
+  const transfers = activeAccounts(data).flatMap((a) => (a.piani[month]?.trasferimenti ?? []).filter((t) => !t.eseguito && t.importo > 0).map((t) => ({ a, t })));
+  const planned = activeAccounts(data)
+    .flatMap((a) => (a.piani[month]?.spesePreviste ?? []).filter((p) => !p.movimentoId && (!p.data || dayNumber(p.data) <= horizon)).map((p) => ({ a, p })))
+    .sort((x, y) => byDate(x.p, y.p));
+  return (
+    <div className="card">
+      <div className="card-head">
+        <div>
+          <h2>Da fare</h2>
+          <p>Quote del mese e spese previste nei prossimi 10 giorni.</p>
+        </div>
+      </div>
+      {transfers.length === 0 && planned.length === 0 ? (
+        <p className="muted">Tutto in ordine: nessuna quota o spesa prevista in sospeso.</p>
+      ) : (
+        <ul className="list">
+          {transfers.map(({ a, t }) => (
+            <li key={t.id} className="list-item wrap-mobile">
+              <Icon name="up" />
+              <div className="grow">
+                <div className="title">{t.descrizione}</div>
+                <div className="sub">Quota da versare · {a.nome}</div>
+              </div>
+              <strong className="num">{formatEuro(t.importo)}</strong>
+              <button type="button" className="btn small" onClick={() => setTransferDone(a.id, month, t.id, true)}>
+                Versata
+              </button>
+            </li>
+          ))}
+          {planned.slice(0, 8).map(({ a, p }) => {
+            const categoria = a.categorie.find((c) => c.id === p.categoriaId);
+            return (
+              <li key={p.id} className="list-item wrap-mobile">
+                <CategoryDot color={categoria?.colore ?? 'var(--axis)'} />
+                <div className="grow">
+                  <div className="title">{p.descrizione}</div>
+                  <div className="sub">
+                    {p.data ? `${dateLabel(p.data)} · ` : ''}
+                    {a.nome}
+                  </div>
+                </div>
+                <strong className="num">{formatEuro(p.importo)}</strong>
+                <button type="button" className="btn small" onClick={() => payPlanned(a.id, month, p.id)}>
+                  Pagata
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** Categorie vicine o oltre il budget, su tutti i conti. */
+function Watchlist({ data }: { data: AppData }) {
+  const month = currentMonth();
+  const rows = activeAccounts(data).flatMap((a) =>
+    categoryRows(a.piani[month], transactionsOfMonth(a.movimenti, month), a.categorie)
+      .filter((r) => r.budget > 0 && r.utilizzo >= 85 && (r.residuo < 0 || r.previsto < r.budget))
+      .map((r) => ({ a, r })),
+  );
+  rows.sort((x, y) => y.r.utilizzo - x.r.utilizzo);
+  return (
+    <div className="card">
+      <div className="card-head">
+        <h2>Categorie da tenere d'occhio</h2>
+      </div>
+      {rows.length === 0 ? (
+        <p className="muted">Nessuna categoria vicina al limite del budget.</p>
+      ) : (
+        <ul className="list">
+          {rows.slice(0, 8).map(({ a, r }) => (
+            <li key={`${a.id}-${r.categoria.id}`} className="list-item">
+              <CategoryDot color={r.categoria.colore} />
+              <div className="grow">
+                <div className="split">
+                  <span className="title">
+                    {r.categoria.nome} <span className="muted small">· {a.nome}</span>
+                  </span>
+                  <span className={`small ${r.residuo < 0 ? 'text-bad' : ''}`}>
+                    {r.residuo < 0 ? `sforato di ${formatEuro(-r.residuo)}` : `restano ${formatEuro(r.residuo)}`}
+                  </span>
+                </div>
+                <Meter value={r.speso} max={r.budget} label={`Budget ${r.categoria.nome}`} />
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function Welcome() {
   return (
     <div className="card" style={{ maxWidth: 720 }}>
       <h1>Benvenuto in Salvadanaio</h1>
-      <p className="muted">Uno strumento per dare a ogni euro dello stipendio un compito, e poi verificare come è andata.</p>
+      <p className="muted">Uno strumento per dare a ogni euro dello stipendio un compito, e poi verificare come è andata, conto per conto.</p>
       <ol style={{ paddingLeft: 20, lineHeight: 1.7 }}>
         <li>
-          <strong>Imposta il modello mensile</strong> in <Link to="impostazioni">Impostazioni</Link>: stipendio, quanto versi sul conto cointestato e sui
-          risparmi, budget per categoria.
+          <strong>Sistema i conti</strong> in <Link to="impostazioni">Impostazioni</Link>: il tuo conto personale, il cointestato, i risparmi. Puoi aggiungere anche
+          il conto della tua compagna.
         </li>
         <li>
-          <strong>Aggiungi le spese ricorrenti</strong> (abbonamenti, visite periodiche, assicurazioni): compariranno da sole nei mesi giusti.
+          Per ogni conto apri <strong>Piano → Modello</strong>: stipendio, quote verso gli altri conti, budget per categoria e spese ricorrenti (anche settimanali o a
+          settimane alterne).
         </li>
         <li>
-          <strong>Configura il <Link to="cointestato/impostazioni">conto cointestato</Link></strong>: come dividete le spese comuni, budget comune e spese
-          fisse come affitto e bollette.
+          Nel cointestato scegli <strong>come dividete le spese</strong>: in parti uguali, in proporzione agli stipendi o con percentuali fisse.
         </li>
         <li>
-          <strong>Crea il piano del mese</strong> e <strong>registra le spese</strong> con il pulsante "+ Spesa".
-        </li>
-        <li>
-          <strong>Definisci gli obiettivi</strong> (auto, casa, investimenti) e controlla l'<strong>Analisi</strong> per ridistribuire i budget.
+          Ogni mese <strong>crea il piano</strong>, registra le spese con "+ Spesa" e guarda l'<strong>Analisi</strong> di ogni conto.
         </li>
       </ol>
       <div className="actions">
         <Link className="btn primary" to="impostazioni">
-          Inizia dal modello
-            </Link>
+          Inizia dai conti
+        </Link>
         <button type="button" className="btn" onClick={loadDemo}>
           Esplora con dati di esempio
         </button>
@@ -239,59 +279,6 @@ function Welcome() {
       <p className="small muted" style={{ marginBottom: 0 }}>
         I dati restano solo in questo browser. Puoi esportarli in qualsiasi momento dalle Impostazioni.
       </p>
-    </div>
-  );
-}
-
-/** Riepilogo del conto cointestato per il mese corrente. */
-function JointCard({ month }: { month: string }) {
-  const data = useData();
-  const joint = data.cointestato;
-  if (!joint.piani[month] && joint.movimenti.length === 0) return null;
-  const summary = jointMonthSummary(data, month);
-  const saldo = currentBalance(data, month);
-  const partner = personName(data, 'partner');
-  const da = summary.daRimborsare.io + summary.daRimborsare.partner;
-  return (
-    <div className="card section-gap">
-      <div className="card-head">
-        <h2>Conto cointestato</h2>
-        <Link className="small" to={`cointestato/mese/${month}`}>
-          Apri
-        </Link>
-      </div>
-      <div className="grid grid-3">
-        <div>
-          <div className="muted small">Saldo</div>
-          <strong className={saldo < 0 ? 'text-bad' : undefined} style={{ fontSize: '1.2rem' }}>
-            {formatEuro(saldo)}
-          </strong>
-        </div>
-        <div>
-          <div className="split small">
-            <span className="muted">Spese comuni</span>
-            <span>
-              {formatEuro(summary.speso)} / {formatEuro(summary.budget)}
-            </span>
-          </div>
-          <div style={{ marginTop: 6 }}>
-            <Meter value={summary.speso} max={summary.budget} label="Budget comune utilizzato" />
-          </div>
-        </div>
-        <div className="small">
-          {!summary.versamenti.partner.eseguito && summary.versamenti.partner.importo > 0 && (
-            <div>
-              Versamento di {partner}: <strong>{formatEuro(summary.versamenti.partner.importo)}</strong> da fare
-            </div>
-          )}
-          {da > 0 && (
-            <div>
-              Da rimborsare: <strong>{formatEuro(da)}</strong>
-            </div>
-          )}
-          {summary.versamenti.partner.eseguito && da === 0 && <div className="muted">Versamenti e rimborsi in ordine.</div>}
-        </div>
-      </div>
     </div>
   );
 }

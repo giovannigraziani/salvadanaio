@@ -9,15 +9,7 @@ export type DateKey = string;
 /** Importo in centesimi di euro. */
 export type Cents = number;
 
-export type AccountType = 'cointestato' | 'risparmio' | 'investimenti' | 'personale';
-
-/** Un conto su cui viene versata una parte dello stipendio. */
-export interface Account {
-  id: ID;
-  nome: string;
-  tipo: AccountType;
-  note?: string;
-}
+export type AccountType = 'personale' | 'cointestato' | 'risparmio' | 'investimenti';
 
 /** Essenziale = spesa difficilmente comprimibile; discrezionale = spesa su cui si può agire. */
 export type CategoryKind = 'essenziale' | 'discrezionale';
@@ -30,8 +22,15 @@ export interface Category {
   archiviata?: boolean;
 }
 
-/** Ogni quanti mesi si ripete una spesa ricorrente. */
-export type Frequency = 1 | 2 | 3 | 4 | 6 | 12;
+/**
+ * Ogni quanto si ripete una spesa ricorrente.
+ * - mesi: ogni N mesi, nello stesso giorno del mese della prima data;
+ * - settimane: ogni N settimane, nello stesso giorno della settimana della prima data.
+ */
+export interface Schedule {
+  tipo: 'mesi' | 'settimane';
+  ogni: number;
+}
 
 /** Impegno ricorrente (abbonamenti, rate, visite periodiche...). */
 export interface Recurring {
@@ -39,13 +38,11 @@ export interface Recurring {
   descrizione: string;
   categoriaId: ID;
   importo: Cents;
-  frequenza: Frequency;
-  /** Primo mese in cui la spesa si presenta. */
-  meseInizio: MonthKey;
-  /** Ultimo mese incluso (facoltativo). */
-  meseFine?: MonthKey;
-  /** Giorno del mese previsto per l'addebito. */
-  giorno?: number;
+  ripetizione: Schedule;
+  /** Data della prima occorrenza: fissa il giorno del mese o della settimana. */
+  inizio: DateKey;
+  /** Ultima data possibile (facoltativa). */
+  fine?: DateKey;
   attiva: boolean;
 }
 
@@ -55,12 +52,14 @@ export interface IncomeLine {
   importo: Cents;
 }
 
-/** Quota dello stipendio spostata altrove: un conto o un obiettivo. */
+/** Quota spostata dal conto verso un altro conto o un obiettivo. */
 export interface TransferLine {
   id: ID;
   descrizione: string;
   importo: Cents;
+  /** Conto di destinazione. */
   contoId?: ID;
+  /** Obiettivo di destinazione (i soldi vanno sul conto dell'obiettivo). */
   obiettivoId?: ID;
   /** true quando il versamento è stato effettivamente fatto. */
   eseguito: boolean;
@@ -74,25 +73,26 @@ export interface PlannedExpense {
   descrizione: string;
   categoriaId: ID;
   importo: Cents;
-  giorno?: number;
+  /** Data prevista (facoltativa). */
+  data?: DateKey;
   /** Se generata da una ricorrenza. */
   ricorrenzaId?: ID;
   /** Movimento reale che ha "pagato" questa spesa prevista. */
   movimentoId?: ID;
 }
 
-/** La "teoria" di un mese: entrate, ripartizione, budget e spese previste. */
+/** La "teoria" di un mese per un conto: entrate, quote da versare, budget e spese previste. */
 export interface MonthPlan {
   mese: MonthKey;
   entrate: IncomeLine[];
   trasferimenti: TransferLine[];
-  /** Budget di spesa personale per categoria. */
+  /** Budget di spesa per categoria. */
   budget: Record<ID, Cents>;
   spesePreviste: PlannedExpense[];
   note?: string;
 }
 
-/** Modello da cui si genera ogni nuovo piano mensile. */
+/** Modello da cui si genera ogni nuovo piano mensile del conto. */
 export interface PlanTemplate {
   entrate: Omit<IncomeLine, 'id'>[];
   trasferimenti: Omit<TransferLine, 'id' | 'eseguito' | 'versamentoId'>[];
@@ -109,6 +109,46 @@ export interface Transaction {
   /** Collegamento a una spesa prevista: se assente la spesa è estemporanea. */
   previstaId?: ID;
   note?: string;
+  /** Conto che ha anticipato la spesa al posto di questo (es. una spesa comune pagata con il proprio conto). */
+  pagatoDa?: ID;
+  /** Per le spese anticipate: true quando questo conto ha restituito la somma. */
+  rimborsato?: boolean;
+}
+
+/** Come si dividono le spese di un conto condiviso. */
+export type SplitRule = 'paritaria' | 'proporzionale' | 'percentuale';
+
+export interface JointSplit {
+  regola: SplitRule;
+  /** Conti che alimentano il conto condiviso. */
+  partecipanti: ID[];
+  /** Quote in percentuale per la regola "percentuale". */
+  percentuali: Record<ID, number>;
+  /** Le quote vengono arrotondate per eccesso a multipli di questo importo. */
+  arrotondamento: Cents;
+}
+
+/** Un conto con il suo piano, le sue spese e il suo saldo. */
+export interface Account {
+  id: ID;
+  nome: string;
+  tipo: AccountType;
+  /** Persona a cui appartiene il conto (conti personali). */
+  titolare?: string;
+  /** Giorno in cui arriva lo stipendio: data dei versamenti e del saldo. */
+  giornoStipendio?: number;
+  /** Saldo del conto all'inizio di `meseSaldoIniziale`. */
+  saldoIniziale: Cents;
+  meseSaldoIniziale: MonthKey;
+  categorie: Category[];
+  ricorrenze: Recurring[];
+  modello: PlanTemplate;
+  piani: Record<MonthKey, MonthPlan>;
+  movimenti: Transaction[];
+  /** Regola di ripartizione (conti cointestati). */
+  ripartizione?: JointSplit;
+  note?: string;
+  archiviato?: boolean;
 }
 
 export type GoalType = 'acquisto' | 'casa' | 'investimento' | 'emergenza' | 'altro';
@@ -140,76 +180,20 @@ export interface Goal {
 }
 
 export interface Settings {
+  /** Il mio nome, usato nel saluto. */
   nome?: string;
-  /** Giorno del mese in cui arriva lo stipendio. */
-  giornoStipendio: number;
   /** true se i dati sono quelli di esempio. */
   datiDiEsempio?: boolean;
+  /** Data dell'ultimo backup esportato o copiato. */
+  ultimoBackup?: DateKey;
+  /** Data del primo salvataggio, per il promemoria del backup. */
+  primoUtilizzo?: DateKey;
 }
 
 export interface AppData {
   version: number;
   settings: Settings;
+  /** Il primo conto non archiviato è quello predefinito. */
   conti: Account[];
-  categorie: Category[];
-  ricorrenze: Recurring[];
-  modello: PlanTemplate;
-  piani: Record<MonthKey, MonthPlan>;
-  movimenti: Transaction[];
   obiettivi: Goal[];
-  cointestato: JointData;
-}
-
-// ---------- Conto cointestato ----------
-
-/** Chi partecipa al conto cointestato. */
-export type Partner = 'io' | 'partner';
-
-/** Come si dividono le spese comuni. */
-export type SplitRule = 'paritaria' | 'proporzionale' | 'percentuale';
-
-export interface JointSettings {
-  /** Conto (di tipo cointestato) su cui arrivano i versamenti. */
-  contoId?: ID;
-  nomePartner: string;
-  regola: SplitRule;
-  /** Redditi netti mensili, usati dalla regola proporzionale. */
-  redditoIo: Cents;
-  redditoPartner: Cents;
-  /** Quota a mio carico (0-100), usata dalla regola percentuale. */
-  percentualeIo: number;
-  /** Le quote vengono arrotondate per eccesso a multipli di questo importo. */
-  arrotondamento: Cents;
-  /** Saldo del conto all'inizio di `meseSaldoIniziale`. */
-  saldoIniziale: Cents;
-  meseSaldoIniziale: MonthKey;
-}
-
-/** Chi ha pagato una spesa comune: il conto stesso o una persona che l'ha anticipata. */
-export type Payer = 'conto' | Partner;
-
-export interface JointTransaction extends Transaction {
-  pagatoDa: Payer;
-  /** Per le spese anticipate: true quando il conto ha restituito la somma. */
-  rimborsato?: boolean;
-}
-
-/** Piano mensile del conto cointestato. */
-export interface JointPlan {
-  mese: MonthKey;
-  budget: Record<ID, Cents>;
-  spesePreviste: PlannedExpense[];
-  /** Versamento della persona partner (il mio è la quota "cointestato" del mio piano personale). */
-  versamentoPartner: { importo: Cents; eseguito: boolean };
-  note?: string;
-}
-
-export interface JointData {
-  impostazioni: JointSettings;
-  categorie: Category[];
-  ricorrenze: Recurring[];
-  /** Budget per categoria usato per i nuovi piani mensili. */
-  modelloBudget: Record<ID, Cents>;
-  piani: Record<MonthKey, JointPlan>;
-  movimenti: JointTransaction[];
 }

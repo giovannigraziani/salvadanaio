@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
-import type { Category, ID, PlannedExpense } from '../domain/types';
+import { dateInMonth } from '../domain/month';
+import type { Category, ID, MonthKey, PlannedExpense } from '../domain/types';
 import { Field, Modal, MoneyInput } from './components';
 
 /** Finestra per aggiungere o modificare una spesa prevista in un piano mensile (personale o comune). */
@@ -9,6 +10,7 @@ export function PlannedModal({
   ...props
 }: {
   planned: PlannedExpense | null;
+  month: MonthKey;
   categorie: Category[];
   exists: boolean;
   onSave: (p: PlannedExpense) => void;
@@ -24,6 +26,7 @@ export function PlannedModal({
 }
 
 function PlannedForm({
+  month,
   categorie,
   exists,
   onSave,
@@ -32,6 +35,7 @@ function PlannedForm({
   initial,
   onDone,
 }: {
+  month: MonthKey;
   categorie: Category[];
   exists: boolean;
   onSave: (p: PlannedExpense) => void;
@@ -56,14 +60,14 @@ function PlannedForm({
         <Field label="Importo previsto (€)">
           <MoneyInput value={p.importo} onChange={(importo) => setP({ ...p, importo })} />
         </Field>
-        <Field label="Giorno del mese" hint="Facoltativo">
+        <Field label="Data prevista" hint="Facoltativa">
           <input
             className="input"
-            type="number"
-            min={1}
-            max={31}
-            value={p.giorno ?? ''}
-            onChange={(e) => setP({ ...p, giorno: e.target.value ? Number(e.target.value) : undefined })}
+            type="date"
+            min={dateInMonth(month, 1)}
+            max={dateInMonth(month, 31)}
+            value={p.data ?? ''}
+            onChange={(e) => setP({ ...p, data: e.target.value || undefined })}
           />
         </Field>
         <Field label="Categoria" full>

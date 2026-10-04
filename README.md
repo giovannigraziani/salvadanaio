@@ -14,6 +14,11 @@ Serve una sola configurazione, da fare una volta: su GitHub apri **Settings → 
 
 Il codice è pubblico, i dati no: restano nel browser di chi usa l'app. Usando sempre lo stesso browser e dispositivo i dati si ritrovano; per passare a un altro dispositivo esporta e importa il backup.
 
+- **Offline**: dopo la prima apertura l'app viene salvata sul dispositivo (service worker) e si apre anche senza connessione; quando è online scarica da sola le nuove versioni.
+- **Archivio protetto**: l'app chiede al browser di non cancellare i suoi dati per liberare spazio. Su iPhone conviene aggiungerla alla schermata Home: Safari altrimenti cancella i dati dei siti non visitati da 7 giorni.
+- **Backup**: in panoramica compare un promemoria se l'ultimo backup ha più di 30 giorni.
+- Aggiornando da una versione precedente i dati vengono convertiti in automatico; una copia dei dati originali resta nel browser (chiave `salvadanaio:data:v2`).
+
 ## Sviluppo
 
 ```bash
@@ -28,38 +33,40 @@ La build è statica e usa percorsi relativi: `dist/` si può pubblicare così co
 
 ## Come funziona
 
-Il flusso segue quello dello stipendio:
+L'app è organizzata per **conti**. Ogni conto (il mio, quello della mia compagna, il cointestato, i risparmi…) ha una sua scheda con tre sezioni:
 
-```
-Stipendio ─┬─► quota al conto cointestato     (spese comuni con la compagna)
-           ├─► quota al conto risparmi
-           ├─► quote verso obiettivi           (auto, casa, PAC…)
-           └─► spese personali ─┬─ pianificate (ricorrenze, visite, impegni noti)
-                                └─ estemporanee
-```
+| Sezione del conto | A cosa serve |
+|---|---|
+| **Piano** – vista *Mese* | La teoria del mese: entrate, versamenti in arrivo da altri conti, quote da versare (scegliendo il conto o l'obiettivo di destinazione, con spunta "versato"), budget per categoria, spese previste in elenco o **calendario**. Si crea dal modello o copiando il mese precedente. |
+| **Piano** – vista *Modello* | Il "preset" del conto da cui nasce ogni mese: impostazioni (nome, tipo, titolare, giorno dello stipendio, saldo iniziale), entrate, quote, budget, spese ricorrenti, categorie e, per il cointestato, la regola di ripartizione. |
+| **Spese** | Registro delle spese effettive del conto. Ogni spesa può essere collegata a una spesa prevista: se non lo è, è *estemporanea*. |
+| **Analisi** | Dove vanno le entrate, budget e speso per categoria, pianificato o estemporaneo, andamento mensile, saldo stimato mese per mese, tasso di risparmio, chi ha messo cosa (conti condivisi) e **suggerimenti per ridistribuire il budget**. |
+
+Le altre sezioni:
 
 | Sezione | A cosa serve |
 |---|---|
-| **Panoramica** | Quanto puoi ancora spendere nel mese (e al giorno), cosa resta da versare o pagare, categorie vicine al limite, avanzamento obiettivi. |
-| **Piano mensile** | La teoria del mese: entrate, quote da versare (con spunta "versato"), budget per categoria, spese previste (generate dalle ricorrenze più quelle aggiunte a mano). Si crea dal modello o copiando il mese precedente. |
-| **Spese** | Registro delle spese effettive, filtrabile per mese, categoria e tipo. Ogni spesa può essere collegata a una spesa prevista: se non lo è, è *estemporanea*. Il pulsante "+ Spesa" è sempre disponibile. |
-| **Conto cointestato** | Le spese comuni con la compagna: regola di ripartizione (a metà, in proporzione allo stipendio o percentuale fissa), quote calcolate ogni mese, budget e spese ricorrenti comuni (affitto, bollette…), spese anticipate da rimborsare, saldo del conto e analisi di chi ha versato cosa. |
-| **Analisi** | Dove vanno le entrate, budget e speso per categoria, pianificato o estemporaneo, andamento mensile, tasso di risparmio e **suggerimenti per ridistribuire il budget** (applicabili con un clic). |
-| **Obiettivi** | Obiettivi con importo, scadenza e priorità: quanto manca, quanto serve al mese per rispettare la scadenza, quando lo raggiungi al ritmo attuale. Calcolo guidato per anticipo casa e rata del mutuo e per il fondo emergenza. |
-| **Impostazioni** | Modello mensile, spese ricorrenti, categorie (essenziali o discrezionali), conti, tema, backup. |
+| **Panoramica** | Riepilogo di tutti i conti: saldo totale stimato, entrate e spese del mese, una scheda per conto, cose da fare (quote da versare, spese previste dei prossimi giorni), categorie vicine al limite, obiettivi. |
+| **Obiettivi** | Auto, casa, investimenti, fondo emergenza: quanto manca, quanto serve al mese per la scadenza, quando lo raggiungi al ritmo attuale. Calcolo guidato per anticipo casa, rata del mutuo e fondo emergenza. |
+| **Impostazioni** | Aggiungi, ordina, archivia ed elimina i conti; tema; backup, protezione dell'archivio, dati di esempio. |
+
+Il pulsante **"+ Spesa"** è sempre disponibile e propone il conto della scheda aperta.
 
 ### Collegamenti automatici
 
-- Le **spese ricorrenti** (mensili, bimestrali, … annuali) entrano da sole nel piano dei mesi in cui cadono.
+- Le **spese ricorrenti** entrano da sole nel piano dei mesi in cui cadono: settimanali, ogni 2 o 4 settimane (stesso giorno della settimana: una visita a giovedì alterni capita 2 o 3 volte al mese), mensili, bimestrali… annuali.
 - "Segna pagata" su una spesa prevista crea la spesa effettiva collegata; eliminando la spesa il collegamento si annulla.
-- Una **quota del piano diretta a un obiettivo**, spuntata come versata, registra il versamento sull'obiettivo (e lo toglie se la spunta viene rimossa).
-- Il **mio versamento al conto cointestato** è la quota verso quel conto nel piano personale: "Allinea alle quote" la porta all'importo calcolato dalla regola, e la spunta "versato" vale in entrambe le sezioni.
+- Una **quota verso un altro conto** compare tra i "versamenti in arrivo" di quel conto; la spunta vale per entrambi.
+- Una **quota verso un obiettivo**, spuntata come versata, registra il versamento sull'obiettivo e arriva sul conto in cui vive l'obiettivo.
 
-### Il conto cointestato
+### Conti condivisi (cointestato)
 
-- **Quote**: ogni mese il budget comune (comprese le spese ricorrenti del mese) viene diviso secondo la regola scelta e arrotondato per eccesso (es. a 10 €).
-- **Saldo**: parte dal saldo iniziale impostato; entrano i versamenti segnati come eseguiti, escono le spese pagate dal conto e i rimborsi.
-- **Spese anticipate**: una spesa comune pagata di tasca propria non tocca il conto finché non viene segnata come rimborsata; nel frattempo compare tra le spese da rimborsare.
+- **Quote**: ogni mese il budget del conto (comprese le spese ricorrenti del mese) viene diviso tra i conti partecipanti: in parti uguali, **in proporzione alle entrate** del modello di ciascun conto, o con percentuali fisse; arrotondato per eccesso (es. a 10 €). "Allinea alle quote" aggiorna la quota nel piano di ogni partecipante.
+- **Spese anticipate**: una spesa comune pagata con un conto personale non tocca il cointestato finché non viene segnata come rimborsata; nel frattempo compare tra le spese anticipate di entrambi i conti.
+
+### Saldo stimato
+
+Ogni conto parte dal suo saldo iniziale (nel modello). Entrano le entrate proprie (dal giorno dello stipendio), i versamenti ricevuti e i rimborsi; escono le quote versate, le spese pagate e quelle anticipate per altri conti.
 
 ### Come vengono calcolati i suggerimenti
 
@@ -69,27 +76,27 @@ Per ogni categoria il budget del modello viene confrontato con il **fabbisogno m
 
 ```
 src/
-  domain/      logica pura, senza React (testata in domain.test.ts)
+  domain/      logica pura, senza React (testata nei file *.test.ts)
     types.ts     modello dati — importi sempre in centesimi interi
-    plan.ts      creazione piano, riepiloghi, righe per categoria
-    recurring.ts ricorrenze
     analysis.ts  statistiche, flusso delle entrate, suggerimenti
     goals.ts     proiezioni obiettivi, mutuo, fondo emergenza
-    joint.ts     conto cointestato: quote, saldo, rimborsi, statistiche
+    ledger.ts    calcoli su un conto: piano, versamenti tra conti, saldo, quote condivise
+    schedule.ts  ricorrenze (mesi o settimane) e loro occorrenze
+    migrate.ts   conversione dei dati delle versioni precedenti
     money.ts / month.ts  formattazione e parsing (formato italiano)
     demo.ts      dati di esempio
   store/       stato globale, salvataggio su localStorage, azioni
   ui/          componenti, grafici SVG, editor condivisi
-  pages/       una pagina per sezione
+  pages/       Panoramica, Obiettivi, Impostazioni e la scheda Conto (conto/: Mese, Modello, Analisi)
 ```
 
-Lo schema dei dati ha un numero di versione (`AppData.version`); le migrazioni vanno aggiunte in `store/store.ts` (`migrate`).
+Lo schema dei dati ha un numero di versione (`AppData.version`); le migrazioni vanno aggiunte in `domain/migrate.ts`.
 
 ## Roadmap
 
 Già previsto nel modello dati (i conti hanno un tipo: `cointestato`, `risparmio`, `investimenti`, `personale`) e da sviluppare:
 
-1. ~~**Conto cointestato nel dettaglio**~~ — fatto. Possibili sviluppi: entrate extra sul conto (rimborsi, regali), più persone, accantonamenti comuni (vacanze, mobili).
-2. **Conto risparmi nel dettaglio** — saldo reale, suddivisione del saldo tra gli obiettivi ("buste"), storico dei movimenti.
+1. ~~**Conto cointestato nel dettaglio**~~ — fatto, ora come conto con la sua scheda e regola di ripartizione tra più conti.
+2. **Conto risparmi nel dettaglio** — c'è la scheda con saldo e versamenti; da sviluppare la suddivisione del saldo tra gli obiettivi ("buste").
 3. **Investimenti** — strumenti (ETF, fondi, obbligazioni), PAC, valore di mercato e rendimento, asset allocation e simulazioni ("quanto e come investire").
-4. Possibili miglioramenti trasversali: import CSV dall'home banking, sincronizzazione tra dispositivi, funzionamento offline (service worker), entrate variabili e rimborsi.
+4. Possibili miglioramenti trasversali: sincronizzazione tra dispositivi (per condividere i conti con la compagna), import CSV dall'home banking.

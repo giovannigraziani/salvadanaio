@@ -82,8 +82,8 @@ export function TransferEditor<T extends TransferRow>({
               onChange(i, { contoId: kind === 'conto' ? id : undefined, obiettivoId: kind === 'obiettivo' ? id : undefined });
             }}
           >
-            <option value="">— destinazione —</option>
-            <optgroup label="Conti">
+            <option value="">Verso… (scegli la destinazione)</option>
+            <optgroup label="Altri conti">
               {conti.map((c) => (
                 <option key={c.id} value={`conto:${c.id}`}>
                   {c.nome}

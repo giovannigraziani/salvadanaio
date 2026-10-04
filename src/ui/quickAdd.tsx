@@ -1,12 +1,11 @@
 import { createContext, useContext } from 'react';
-import type { JointTransaction } from '../domain/types';
-import type { Scope } from './TransactionForm';
+import type { ID, Transaction } from '../domain/types';
 
 /**
  * Permette a qualsiasi pagina di aprire la finestra "Nuova spesa" / "Modifica spesa".
- * Senza `scope` la spesa è comune nella sezione del conto cointestato, personale altrove.
+ * Senza conto si usa quello della scheda aperta o il conto predefinito.
  */
-export const QuickAddContext = createContext<(tx?: Partial<JointTransaction>, scope?: Scope) => void>(() => {});
+export const QuickAddContext = createContext<(tx?: Partial<Transaction>, accountId?: ID) => void>(() => {});
 
 export function useOpenTransaction() {
   return useContext(QuickAddContext);

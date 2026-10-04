@@ -87,3 +87,25 @@ export function dateLabel(date: DateKey): string {
 export function isValidMonth(value: string): value is MonthKey {
   return /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
 }
+
+/** Giorni dall'epoca (UTC), per calcoli tra date senza problemi di ora legale. */
+export function dayNumber(date: DateKey): number {
+  const [y, m, d] = date.split('-').map(Number);
+  return Math.round(Date.UTC(y!, m! - 1, d!) / 86400000);
+}
+
+export function fromDayNumber(n: number): DateKey {
+  const d = new Date(n * 86400000);
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+}
+
+export const weekdayNames = ['domenica', 'lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato'];
+
+/** 0 = domenica … 6 = sabato. */
+export function weekday(date: DateKey): number {
+  return (((dayNumber(date) + 4) % 7) + 7) % 7;
+}
+
+export function dayOfMonth(date: DateKey): number {
+  return Number(date.slice(8, 10));
+}

@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { rangeStats } from '../domain/analysis';
 import { emergencyFundTarget, goalTypeLabels, houseCashNeeded, mortgagePayment, projectGoal, type GoalStatus } from '../domain/goals';
 import { newId } from '../domain/id';
+import { primaryAccount } from '../domain/ledger';
 import { formatEuro, sum } from '../domain/money';
 import { currentMonth, dateLabel, monthLabel, today } from '../domain/month';
 import type { AppData, Goal, GoalType } from '../domain/types';
@@ -121,7 +122,7 @@ function GoalCard({
 }) {
   const status = statusInfo[p.status];
   const conto = data.conti.find((c) => c.id === goal.contoId);
-  const linked = data.modello.trasferimenti.some((t) => t.obiettivoId === goal.id);
+  const linked = data.conti.some((a) => a.modello.trasferimenti.some((t) => t.obiettivoId === goal.id));
   return (
     <div className="card goal-card">
       <div className="top">
@@ -405,14 +406,17 @@ function HouseHelper({ onTarget }: { onTarget: (v: number) => void }) {
 /** Fondo emergenza: N mesi di spese, stimate dalle spese personali e dal versamento al cointestato. */
 function EmergencyHelper({ data, onTarget }: { data: AppData; onTarget: (v: number) => void }) {
   const [mesi, setMesi] = useState(6);
-  const stats = rangeStats(data, currentMonth(), 6);
-  const monthly = stats.length ? Math.round(sum(stats, (s) => s.speso + s.trasferimenti.cointestato) / stats.length) : 0;
+  const primary = primaryAccount(data);
+  const stats = primary ? rangeStats(data, primary, currentMonth(), 6) : [];
+  const joint = new Set(data.conti.filter((a) => a.tipo === 'cointestato').map((a) => `conto:${a.id}`));
+  const toJoint = (s: (typeof stats)[number]) => sum(Object.entries(s.uscite), ([k, v]) => (joint.has(k) ? v : 0));
+  const monthly = stats.length ? Math.round(sum(stats, (s) => s.speso + toJoint(s)) / stats.length) : 0;
   const target = emergencyFundTarget(monthly, mesi);
   return (
     <div className="full card" style={{ background: 'var(--surface-2)', boxShadow: 'none' }}>
       <h3 style={{ marginBottom: 10 }}>Calcolo fondo emergenza</h3>
       <p className="small muted">
-        Costo mensile stimato: {formatEuro(monthly)} (spese personali + quota per il conto cointestato, media ultimi 6 mesi).
+        Costo mensile stimato: {formatEuro(monthly)} (spese del tuo conto + quota per il conto cointestato, media ultimi 6 mesi).
       </p>
       <Field label="Mesi da coprire" hint="Di solito tra 3 e 6">
         <input className="input" type="number" min={1} max={24} value={mesi} onChange={(e) => setMesi(Number(e.target.value))} />

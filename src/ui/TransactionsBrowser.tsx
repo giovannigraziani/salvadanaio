@@ -2,36 +2,10 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { formatEuro, sum } from '../domain/money';
 import { currentMonth, dateLabel, monthOfDate } from '../domain/month';
 import type { Category, MonthKey, Transaction } from '../domain/types';
-import { useData } from '../store/store';
-import { CategoryDot, MonthSwitcher, Segmented } from '../ui/components';
-import { Icon } from '../ui/icons';
-import { useOpenTransaction } from '../ui/quickAdd';
-import { navigate } from '../ui/router';
+import { CategoryDot, Segmented } from './components';
+import { Icon } from './icons';
 
 type Kind = 'tutte' | 'pianificate' | 'estemporanee';
-
-export function Movimenti({ month = currentMonth() }: { month?: MonthKey }) {
-  const data = useData();
-  const openTransaction = useOpenTransaction();
-  return (
-    <>
-      <div className="page-head">
-        <div>
-          <h1>Spese</h1>
-          <p>Tutto quello che hai speso davvero, pianificato o no.</p>
-        </div>
-        <MonthSwitcher month={month} onChange={(m) => navigate(`movimenti/${m}`)} />
-      </div>
-      <TransactionsBrowser
-        transactions={data.movimenti}
-        categorie={data.categorie}
-        month={month}
-        onOpen={(t) => openTransaction(t, 'personale')}
-        onAdd={(partial) => openTransaction(partial, 'personale')}
-      />
-    </>
-  );
-}
 
 /** Elenco filtrabile delle spese di un mese, raggruppate per giorno. */
 export function TransactionsBrowser<T extends Transaction>({
