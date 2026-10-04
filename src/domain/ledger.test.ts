@@ -172,7 +172,7 @@ describe('analisi sui dati di esempio', () => {
     expect(suggestions.find((s) => s.categoria.id === 'svago')?.kind).toBe('aumenta');
     // l'assicurazione trimestrale da 95 € pesa 31,67 € al mese (non 95 € in un mese e 0 negli altri), più 120 € di carburante
     const trasporti = suggestions.find((s) => s.categoria.id === 'trasporti');
-    if (trasporti) expect(trasporti.ricorrenti).toBe(3167 + 12000);
+    if (trasporti) expect(trasporti.ricorrenti).toBe(3167);
   });
 
   it('le quote del cointestato seguono la regola e i conti sono coerenti', () => {
@@ -200,5 +200,19 @@ describe('suggerimenti e ricorrenze', () => {
     const comune = data.conti.find((a) => a.id === 'cointestato')!;
     const s = budgetSuggestions(data, comune, '2026-09', 3);
     expect(s.find((x) => x.categoria.id === 'c-casa')).toBeUndefined();
+  });
+});
+
+describe('suggerimenti e voci a consumo', () => {
+  it('quello che si spende su una voce a consumo conta come spesa variabile', () => {
+    const data = demoData('2026-10', 4);
+    const mio = data.conti[0]!;
+    // tetto del carburante molto più basso dei pieni reali
+    mio.ricorrenze = mio.ricorrenze.map((r) => (r.id === 'r-carburante' ? { ...r, importo: 2000 } : r));
+    mio.modello.budget.trasporti = 2000;
+    const s = budgetSuggestions(data, mio, '2026-09', 3).find((x) => x.categoria.id === 'trasporti')!;
+    expect(s.kind).toBe('aumenta');
+    expect(s.ricorrenti).toBe(3167);
+    expect(s.mediaEstemporanea).toBeGreaterThan(10000);
   });
 });

@@ -19,7 +19,7 @@ export interface MonthStats {
   spesoPianificato: Cents;
   spesoEstemporaneo: Cents;
   perCategoria: Record<ID, Cents>;
-  /** Solo spese non collegate a una spesa prevista. */
+  /** Spese variabili: non collegate a una spesa prevista o collegate a una voce a consumo. */
   estemporaneePerCategoria: Record<ID, Cents>;
 }
 
@@ -28,9 +28,12 @@ export function monthStats(data: AppData, account: Account, month: MonthKey): Mo
   const tx = transactionsOfMonth(account.movimenti, month);
   const perCategoria: Record<ID, Cents> = {};
   const estemporaneePerCategoria: Record<ID, Cents> = {};
+  // Le voci a consumo sono un tetto, non un costo noto: quello che vi si spende resta variabile.
+  const consumo = new Set(Object.values(account.piani).flatMap((p) => p.spesePreviste.filter((x) => x.aConsumo).map((x) => x.id)));
   for (const t of tx) {
     perCategoria[t.categoriaId] = (perCategoria[t.categoriaId] ?? 0) + t.importo;
-    if (!t.previstaId) estemporaneePerCategoria[t.categoriaId] = (estemporaneePerCategoria[t.categoriaId] ?? 0) + t.importo;
+    if (!t.previstaId || consumo.has(t.previstaId))
+      estemporaneePerCategoria[t.categoriaId] = (estemporaneePerCategoria[t.categoriaId] ?? 0) + t.importo;
   }
   const uscite: Record<string, Cents> = {};
   for (const t of plan?.trasferimenti ?? []) {
@@ -134,8 +137,8 @@ const roundTo5Euro = (cents: Cents) => Math.ceil(cents / 500) * 500;
 
 /**
  * Confronta il budget del modello con il fabbisogno reale di ogni categoria e propone come ridistribuirlo.
- * Il fabbisogno è la spesa estemporanea media degli ultimi mesi più il costo mensile equivalente
- * delle ricorrenze: un'assicurazione trimestrale pesa per un terzo ogni mese invece di falsare la media.
+ * Il fabbisogno è la spesa variabile media degli ultimi mesi (estemporanea o su voci a consumo) più il costo
+ * mensile equivalente delle ricorrenze fisse: un'assicurazione trimestrale pesa per un terzo ogni mese.
  * - "aumenta": il fabbisogno supera il budget di oltre il 10%;
  * - "riduci": il fabbisogno è sotto il budget di oltre il 25%;
  * - "senza-budget": si spende regolarmente in una categoria senza budget.
@@ -144,7 +147,8 @@ export function budgetSuggestions(data: AppData, account: Account, end: MonthKey
   const stats = rangeStats(data, account, end, count).filter((s) => s.hasPlan);
   if (stats.length === 0) return [];
   const result: Suggestion[] = [];
-  const active = account.ricorrenze.filter((r) => r.attiva && (!r.fine || r.fine.slice(0, 7) >= end));
+  // Le ricorrenze a consumo non sono costi fissi: la loro spesa reale è già nella media variabile.
+  const active = account.ricorrenze.filter((r) => r.attiva && !r.aConsumo && (!r.fine || r.fine.slice(0, 7) >= end));
 
   for (const categoria of account.categorie.filter((c) => !c.archiviata)) {
     const budget = account.modello.budget[categoria.id] ?? 0;
