@@ -210,8 +210,8 @@ a {
   .bottom-nav .nav-link {
     flex-direction: column;
     gap: 2px;
-    font-size: 0.68rem;
-    padding: 6px 2px;
+    font-size: 0.64rem;
+    padding: 6px 1px;
     text-align: center;
   }
   .bottom-nav .nav-link.active {
@@ -1073,4 +1073,83 @@ dialog.modal::backdrop {
   .grid-4 .stat .value {
     font-size: 1.15rem;
   }
+}
+
+/* ---------- Grafico dallo stipendio ---------- */
+
+.flow-chart {
+  position: relative;
+}
+.flow-chart svg {
+  display: block;
+  overflow: visible;
+}
+.flow-root-label {
+  font-size: 0.88rem;
+  color: var(--text-2);
+  margin-bottom: 8px;
+}
+.flow-root {
+  fill: var(--text-2);
+}
+.flow-link {
+  fill-opacity: 0.28;
+  transition: fill-opacity 0.15s;
+}
+.flow-link:hover {
+  fill-opacity: 0.5;
+}
+.flow-label {
+  font-family: var(--font);
+  font-size: 12.5px;
+  fill: var(--text);
+  paint-order: stroke;
+  stroke: var(--surface);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+.flow-label.small {
+  font-size: 11.5px;
+}
+.flow-name {
+  font-weight: 600;
+}
+.flow-label.small .flow-name {
+  font-weight: 500;
+}
+.flow-value {
+  fill: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.flow-tooltip {
+  position: absolute;
+  min-width: 200px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .flow-link {
+    transition: none;
+  }
+}
+
+.consumo-toggle {
+  align-items: flex-start;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+.consumo-toggle input {
+  margin-top: 2px;
+}
+
+.list-heading {
+  margin: 14px 0 2px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.list-heading:first-child {
+  margin-top: 0;
 }

@@ -1,5 +1,5 @@
 // Conversione dei dati salvati con versioni precedenti dello schema.
-import { defaultCategories, defaultJointCategories, emptyData, newAccount, SCHEMA_VERSION } from './defaults';
+import { DEFAULT_ME, defaultCategories, defaultJointCategories, emptyData, newAccount, SCHEMA_VERSION } from './defaults';
 import { currentMonth, dateInMonth, daysInMonth } from './month';
 import type { Account, AppData, Category, Cents, Goal, ID, MonthKey, MonthPlan, PlannedExpense, Recurring, Transaction } from './types';
 
@@ -189,12 +189,30 @@ function fromV2(old: LegacyData): AppData {
   };
 }
 
+/**
+ * Versione 3 → 4: ogni conto non condiviso ha un titolare. Il primo conto personale è mio;
+ * i conti di risparmio e investimento senza titolare sono considerati miei;
+ * gli altri conti personali prendono il nome da "Conto di …".
+ */
+function fillOwners(data: AppData): AppData {
+  const me = data.settings.nome?.trim() || DEFAULT_ME;
+  const firstPersonal = data.conti.find((a) => a.tipo === 'personale');
+  if (firstPersonal && !firstPersonal.titolare) firstPersonal.titolare = me;
+  const mine = firstPersonal?.titolare ?? me;
+  for (const a of data.conti) {
+    if (a.tipo === 'cointestato' || a.titolare) continue;
+    if (a.tipo === 'personale') a.titolare = a.nome.replace(/^Conto di\s+/i, '').trim() || a.nome;
+    else a.titolare = mine;
+  }
+  return data;
+}
+
 /** Porta dati salvati con qualsiasi versione precedente allo schema attuale. */
 export function migrate(raw: unknown): AppData {
   if (!raw || typeof raw !== 'object') throw new Error('Formato dati non valido');
   const data = raw as { version?: unknown };
   if (typeof data.version !== 'number' || data.version > SCHEMA_VERSION) throw new Error('Versione dei dati non supportata');
-  if (data.version < 3) return fromV2(raw as LegacyData);
-  const v3 = raw as AppData;
-  return { ...v3, settings: { ...v3.settings }, conti: v3.conti ?? [], obiettivi: v3.obiettivi ?? [], version: SCHEMA_VERSION };
+  const v3 = data.version < 3 ? fromV2(raw as LegacyData) : (raw as AppData);
+  const result: AppData = { ...v3, settings: { ...v3.settings }, conti: v3.conti ?? [], obiettivi: v3.obiettivi ?? [], version: SCHEMA_VERSION };
+  return (data.version as number) < 4 ? fillOwners(result) : result;
 }

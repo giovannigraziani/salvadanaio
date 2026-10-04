@@ -36,23 +36,31 @@ export const defaultJointCategories: Category[] = [
   cat('c-altro', 'Altro comune', 'discrezionale', 7),
 ];
 
-/** Categorie per le uscite da un conto di risparmio o investimento. */
+/** Categorie per le uscite da un conto di risparmio. */
 export const defaultSavingsCategories: Category[] = [
   cat('r-prelievi', 'Prelievi', 'discrezionale', 0),
   cat('r-imprevisti', 'Imprevisti', 'essenziale', 1),
   cat('r-costi', 'Costi e commissioni', 'essenziale', 2),
 ];
 
+/** Categorie per le uscite da un conto investimenti. */
+export const defaultInvestmentCategories: Category[] = [
+  cat('i-commissioni', 'Commissioni e costi', 'essenziale', 0),
+  cat('i-tasse', 'Imposte (bollo, capital gain)', 'essenziale', 1),
+  cat('i-disinvestimenti', 'Disinvestimenti e prelievi', 'discrezionale', 2),
+];
+
 export const accountTypeLabels: Record<AccountType, string> = {
   personale: 'Personale',
   cointestato: 'Cointestato',
   risparmio: 'Risparmi',
-  investimenti: 'Investimenti',
+  investimenti: 'Investimento',
 };
 
 function categoriesFor(tipo: AccountType): Category[] {
   if (tipo === 'cointestato') return defaultJointCategories.map((c) => ({ ...c }));
   if (tipo === 'personale') return defaultCategories.map((c) => ({ ...c }));
+  if (tipo === 'investimenti') return defaultInvestmentCategories.map((c) => ({ ...c }));
   return defaultSavingsCategories.map((c) => ({ ...c }));
 }
 
@@ -75,17 +83,21 @@ export function newAccount(tipo: AccountType, nome: string, patch: Partial<Accou
     piani: {},
     movimenti: [],
     ripartizione: tipo === 'cointestato' ? { regola: 'paritaria', partecipanti: [], percentuali: {}, arrotondamento: 1000 } : undefined,
+    valutazioni: tipo === 'investimenti' ? [] : undefined,
     ...patch,
   };
 }
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
+
+/** Nome usato per me finché non lo imposto. */
+export const DEFAULT_ME = 'Io';
 
 /** Punto di partenza: il mio conto, il conto cointestato e il conto risparmi. */
 export function emptyData(): AppData {
-  const mio = newAccount('personale', 'Il mio conto', { id: 'principale' });
+  const mio = newAccount('personale', 'Il mio conto', { id: 'principale', titolare: DEFAULT_ME });
   const cointestato = newAccount('cointestato', 'Conto cointestato', { id: 'cointestato' });
-  const risparmi = newAccount('risparmio', 'Conto risparmi', { id: 'risparmio' });
+  const risparmi = newAccount('risparmio', 'Conto risparmi', { id: 'risparmio', titolare: DEFAULT_ME });
   mio.modello.trasferimenti = [
     { descrizione: 'Versamento conto cointestato', importo: 0, contoId: cointestato.id },
     { descrizione: 'Versamento risparmi', importo: 0, contoId: risparmi.id },

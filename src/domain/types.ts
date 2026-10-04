@@ -44,6 +44,11 @@ export interface Recurring {
   /** Ultima data possibile (facoltativa). */
   fine?: DateKey;
   attiva: boolean;
+  /**
+   * Spesa "a consumo": nel piano diventa una voce senza data (es. carburante, spesa settimanale)
+   * che più spese durante il mese vanno a riempire. L'importo del mese è importo × occorrenze.
+   */
+  aConsumo?: boolean;
 }
 
 export interface IncomeLine {
@@ -77,8 +82,10 @@ export interface PlannedExpense {
   data?: DateKey;
   /** Se generata da una ricorrenza. */
   ricorrenzaId?: ID;
-  /** Movimento reale che ha "pagato" questa spesa prevista. */
+  /** Movimento reale che ha "pagato" questa spesa prevista (solo spese singole). */
   movimentoId?: ID;
+  /** Voce a consumo: senza data, la riempiono tutte le spese collegate (tramite `previstaId`). */
+  aConsumo?: boolean;
 }
 
 /** La "teoria" di un mese per un conto: entrate, quote da versare, budget e spese previste. */
@@ -128,12 +135,19 @@ export interface JointSplit {
   arrotondamento: Cents;
 }
 
+/** Valore di mercato di un conto investimenti in una certa data. */
+export interface Valuation {
+  id: ID;
+  data: DateKey;
+  valore: Cents;
+}
+
 /** Un conto con il suo piano, le sue spese e il suo saldo. */
 export interface Account {
   id: ID;
   nome: string;
   tipo: AccountType;
-  /** Persona a cui appartiene il conto (conti personali). */
+  /** Persona a cui appartiene il conto (tutti i conti tranne quelli cointestati). */
   titolare?: string;
   /** Giorno in cui arriva lo stipendio: data dei versamenti e del saldo. */
   giornoStipendio?: number;
@@ -147,6 +161,8 @@ export interface Account {
   movimenti: Transaction[];
   /** Regola di ripartizione (conti cointestati). */
   ripartizione?: JointSplit;
+  /** Valore di mercato registrato nel tempo (conti investimenti). */
+  valutazioni?: Valuation[];
   note?: string;
   archiviato?: boolean;
 }

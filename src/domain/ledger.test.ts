@@ -170,9 +170,9 @@ describe('analisi sui dati di esempio', () => {
   it('suggerimenti: svago sottostimato, assicurazione trimestrale spalmata', () => {
     const suggestions = budgetSuggestions(data, mio, '2026-09', 3);
     expect(suggestions.find((s) => s.categoria.id === 'svago')?.kind).toBe('aumenta');
-    // l'assicurazione trimestrale da 95 € pesa 31,67 € al mese, non 95 € in un mese e 0 negli altri
+    // l'assicurazione trimestrale da 95 € pesa 31,67 € al mese (non 95 € in un mese e 0 negli altri), più 120 € di carburante
     const trasporti = suggestions.find((s) => s.categoria.id === 'trasporti');
-    if (trasporti) expect(trasporti.ricorrenti).toBe(3167);
+    if (trasporti) expect(trasporti.ricorrenti).toBe(3167 + 12000);
   });
 
   it('le quote del cointestato seguono la regola e i conti sono coerenti', () => {

@@ -16,7 +16,7 @@ Il codice è pubblico, i dati no: restano nel browser di chi usa l'app. Usando s
 
 - **Offline**: dopo la prima apertura l'app viene salvata sul dispositivo (service worker) e si apre anche senza connessione; quando è online scarica da sola le nuove versioni.
 - **Archivio protetto**: l'app chiede al browser di non cancellare i suoi dati per liberare spazio. Su iPhone conviene aggiungerla alla schermata Home: Safari altrimenti cancella i dati dei siti non visitati da 7 giorni.
-- **Backup**: in panoramica compare un promemoria se l'ultimo backup ha più di 30 giorni.
+- **Backup**: nella dashboard compare un promemoria se l'ultimo backup ha più di 30 giorni.
 - Aggiornando da una versione precedente i dati vengono convertiti in automatico; una copia dei dati originali resta nel browser (chiave `salvadanaio:data:v2`).
 
 ## Sviluppo
@@ -33,7 +33,7 @@ La build è statica e usa percorsi relativi: `dist/` si può pubblicare così co
 
 ## Come funziona
 
-L'app è organizzata per **conti**. Ogni conto (il mio, quello della mia compagna, il cointestato, i risparmi…) ha una sua scheda con tre sezioni:
+L'app è organizzata per **conti**, e ogni conto non condiviso ha un **titolare** (io, la mia compagna…). I tipi sono: personale, cointestato, risparmi, investimento. Ogni conto ha una sua scheda con tre sezioni:
 
 | Sezione del conto | A cosa serve |
 |---|---|
@@ -46,11 +46,23 @@ Le altre sezioni:
 
 | Sezione | A cosa serve |
 |---|---|
-| **Panoramica** | Riepilogo di tutti i conti: saldo totale stimato, entrate e spese del mese, una scheda per conto, cose da fare (quote da versare, spese previste dei prossimi giorni), categorie vicine al limite, obiettivi. |
+| **Dashboard** | Riepilogo per persona (si sceglie in alto: io, la mia compagna o tutti): saldo dei suoi conti, entrate e spese del mese (più la sua parte delle spese comuni), il grafico **"dove va lo stipendio"**, i suoi conti e quelli condivisi, cose da fare, categorie vicine al limite, obiettivi. La vista "Tutti" raggruppa i conti per persona. |
 | **Obiettivi** | Auto, casa, investimenti, fondo emergenza: quanto manca, quanto serve al mese per la scadenza, quando lo raggiungi al ritmo attuale. Calcolo guidato per anticipo casa, rata del mutuo e fondo emergenza. |
 | **Impostazioni** | Aggiungi, ordina, archivia ed elimina i conti; tema; backup, protezione dell'archivio, dati di esempio. |
 
 Il pulsante **"+ Spesa"** è sempre disponibile e propone il conto della scheda aperta.
+
+### Dove va lo stipendio
+
+Un diagramma a flussi parte dalle entrate della persona (100%) e le divide tra quote verso il cointestato, i risparmi, gli investimenti e gli obiettivi, e spese personali; ogni ramo si divide poi per categoria. Per il cointestato conta la **sua parte** delle spese comuni secondo la regola di ripartizione. Si può vedere **teorico** (piano del mese) o **effettivo** (quote versate e spese registrate). Compare nella dashboard e nel piano di ogni conto personale; sotto c'è la tabella con tutti gli importi e le percentuali.
+
+### Spese a consumo (es. carburante)
+
+Una spesa ricorrente o prevista può essere **a consumo**: nel piano diventa una voce senza data (es. "Carburante 120 €") che i singoli pieni del mese vanno a riempire, con la barra speso/previsto. Ogni nuova spesa nella stessa categoria si collega da sola alla voce (si può cambiare). Se la ricorrenza è settimanale, l'importo del mese vale per ogni settimana (es. spesa settimanale 25 € → 100 o 125 € al mese).
+
+### Investimenti
+
+Il conto investimento riceve le quote degli altri conti come gli altri; in più si registra il **valore di mercato** (es. una volta al mese dall'estratto del broker) e l'app mostra il rendimento rispetto al versato netto. Composizione del portafoglio, ETF e diversificazione arriveranno in seguito.
 
 ### Collegamenti automatici
 
@@ -80,14 +92,15 @@ src/
     types.ts     modello dati — importi sempre in centesimi interi
     analysis.ts  statistiche, flusso delle entrate, suggerimenti
     goals.ts     proiezioni obiettivi, mutuo, fondo emergenza
-    ledger.ts    calcoli su un conto: piano, versamenti tra conti, saldo, quote condivise
+    ledger.ts    calcoli su un conto: piano, versamenti tra conti, saldo, quote condivise, persone, investimenti
+    flow.ts      "dove va lo stipendio": suddivisione dal 100% delle entrate
     schedule.ts  ricorrenze (mesi o settimane) e loro occorrenze
     migrate.ts   conversione dei dati delle versioni precedenti
     money.ts / month.ts  formattazione e parsing (formato italiano)
     demo.ts      dati di esempio
   store/       stato globale, salvataggio su localStorage, azioni
   ui/          componenti, grafici SVG, editor condivisi
-  pages/       Panoramica, Obiettivi, Impostazioni e la scheda Conto (conto/: Mese, Modello, Analisi)
+  pages/       Dashboard, Obiettivi, Impostazioni e la scheda Conto (conto/: Mese, Modello, Analisi)
 ```
 
 Lo schema dei dati ha un numero di versione (`AppData.version`); le migrazioni vanno aggiunte in `domain/migrate.ts`.
@@ -98,5 +111,5 @@ Già previsto nel modello dati (i conti hanno un tipo: `cointestato`, `risparmio
 
 1. ~~**Conto cointestato nel dettaglio**~~ — fatto, ora come conto con la sua scheda e regola di ripartizione tra più conti.
 2. **Conto risparmi nel dettaglio** — c'è la scheda con saldo e versamenti; da sviluppare la suddivisione del saldo tra gli obiettivi ("buste").
-3. **Investimenti** — strumenti (ETF, fondi, obbligazioni), PAC, valore di mercato e rendimento, asset allocation e simulazioni ("quanto e come investire").
+3. **Investimenti** — c'è il conto con valore di mercato e rendimento; da sviluppare strumenti (ETF, fondi, obbligazioni), PAC, asset allocation, diversificazione e simulazioni ("quanto e come investire").
 4. Possibili miglioramenti trasversali: sincronizzazione tra dispositivi (per condividere i conti con la compagna), import CSV dall'home banking.

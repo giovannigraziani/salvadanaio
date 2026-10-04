@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { palette } from '../../domain/defaults';
 import { newId } from '../../domain/id';
 import {
@@ -15,12 +15,17 @@ import {
   splitAmount,
   summarizePlan,
   transactionsOfMonth,
+  consumed,
+  investmentSummary,
+  ownerName,
 } from '../../domain/ledger';
 import { formatEuro, percent } from '../../domain/money';
-import { addMonths, dateLabel, daysInMonth, monthLabel, today } from '../../domain/month';
+import { addMonths, dateInMonth, dateLabel, daysInMonth, monthLabel, today } from '../../domain/month';
 import type { Account, AppData, Cents, MonthKey, MonthPlan, PlannedExpense } from '../../domain/types';
 import {
+  addValuation,
   alignContributions,
+  deleteValuation,
   copyPlanFrom,
   createMonthPlan,
   deletePlan,
@@ -41,11 +46,77 @@ import { CategoryDot, ConfirmButton, Field, IconButton, Link, Meter, Money, Mone
 import { IncomeEditor, TransferEditor } from '../../ui/editors';
 import { Icon } from '../../ui/icons';
 import { PlannedModal } from '../../ui/PlannedModal';
+import { useOpenTransaction } from '../../ui/quickAdd';
+import { SalaryFlowCard } from '../../ui/SalaryFlowCard';
 
 export function MeseView({ data, account, month }: { data: AppData; account: Account; month: MonthKey }) {
   const plan = account.piani[month];
-  if (!plan) return <NoPlan account={account} month={month} />;
-  return <PlanView data={data} account={account} plan={plan} />;
+  return (
+    <>
+      {account.tipo === 'investimenti' && <InvestmentCard data={data} account={account} month={month} />}
+      {plan ? <PlanView data={data} account={account} plan={plan} /> : <NoPlan account={account} month={month} />}
+    </>
+  );
+}
+
+/** Conto investimenti: quanto è stato versato, quanto vale oggi e il rendimento. */
+function InvestmentCard({ data, account, month }: { data: AppData; account: Account; month: MonthKey }) {
+  const s = investmentSummary(data, account, month, today());
+  const [valore, setValore] = useState<Cents>(0);
+  const [giorno, setGiorno] = useState(today());
+  const history = [...(account.valutazioni ?? [])].sort((a, b) => b.data.localeCompare(a.data));
+  const add = (e: FormEvent) => {
+    e.preventDefault();
+    if (valore <= 0) return;
+    addValuation(account.id, giorno, valore);
+    setValore(0);
+  };
+  return (
+    <div className="card" style={{ marginBottom: 16 }}>
+      <div className="card-head">
+        <div>
+          <h2>Valore dell'investimento</h2>
+          <p>Il versato netto viene dal saldo del conto; il valore di mercato lo aggiorni tu, per esempio una volta al mese dall'estratto del broker.</p>
+        </div>
+      </div>
+      <div className="grid grid-3">
+        <Stat label="Versato (netto)" value={<Money value={s.versato} />} hint="Versamenti meno prelievi e costi" />
+        <Stat label="Valore di mercato" value={s.valore !== undefined ? <Money value={s.valore} /> : '—'} hint={s.data ? `al ${dateLabel(s.data)} ${s.data.slice(0, 4)}` : 'Non ancora registrato'} />
+        <Stat
+          label="Rendimento"
+          value={s.rendimento !== undefined ? <Money value={s.rendimento} signed className={s.rendimento < 0 ? 'text-bad' : 'text-good'} /> : '—'}
+          hint={s.rendimentoPct !== undefined ? `${s.rendimentoPct >= 0 ? '+' : ''}${s.rendimentoPct.toFixed(1).replace('.', ',')}% sul versato` : undefined}
+        />
+      </div>
+      <form className="actions section-gap" onSubmit={add}>
+        <Field label="Valore al">
+          <input className="input" type="date" value={giorno} onChange={(e) => setGiorno(e.target.value)} />
+        </Field>
+        <Field label="Valore (€)">
+          <MoneyInput value={valore} onChange={setValore} />
+        </Field>
+        <button type="submit" className="btn primary" style={{ alignSelf: 'end' }}>
+          Registra valore
+        </button>
+      </form>
+      {history.length > 0 && (
+        <ul className="list section-gap">
+          {history.slice(0, 6).map((v) => (
+            <li key={v.id} className="list-item">
+              <div className="grow small">
+                {dateLabel(v.data)} {v.data.slice(0, 4)}
+              </div>
+              <strong className="num">{formatEuro(v.valore)}</strong>
+              <IconButton icon="trash" label="Elimina valore" onClick={() => deleteValuation(account.id, v.id)} />
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="small muted" style={{ marginBottom: 0 }}>
+        Presto qui: composizione del portafoglio, ETF e diversificazione.
+      </p>
+    </div>
+  );
 }
 
 function NoPlan({ account, month }: { account: Account; month: MonthKey }) {
@@ -79,6 +150,7 @@ function PlanView({ data, account, plan }: { data: AppData; account: Account; pl
   const missing = missingRecurring(plan, account.ricorrenze);
   const incoming = incomingTransfers(data, account.id, month);
   const [editingPlanned, setEditingPlanned] = useState<PlannedExpense | null>(null);
+  const openTransaction = useOpenTransaction();
   const [plannedView, setPlannedView] = useState<'elenco' | 'calendario'>('elenco');
   const update = (recipe: (p: MonthPlan) => void) => updatePlan(account.id, month, recipe);
   const underBudget = rows.filter((r) => r.previsto > r.budget);
@@ -131,7 +203,9 @@ function PlanView({ data, account, plan }: { data: AppData; account: Account; pl
         />
       </div>
 
-      {resources > 0 && (
+      {isPersonal && summary.entrate > 0 ? (
+        <SalaryFlowCard data={data} person={ownerName(account)} month={month} />
+      ) : resources > 0 && (
         <div className="card">
           <div className="card-head">
             <div>
@@ -321,41 +395,98 @@ function PlanView({ data, account, plan }: { data: AppData; account: Account; pl
         ) : plan.spesePreviste.length === 0 ? (
           <p className="muted">Nessuna spesa prevista. Aggiungi visite, rate o regali, oppure le spese ricorrenti nel modello del conto.</p>
         ) : (
-          <ul className="list">
-            {[...plan.spesePreviste].sort(byDate).map((p) => {
-              const categoria = account.categorie.find((c) => c.id === p.categoriaId);
-              const paid = p.movimentoId ? account.movimenti.find((t) => t.id === p.movimentoId) : undefined;
-              return (
-                <li key={p.id} className="list-item wrap-mobile">
-                  <CategoryDot color={categoria?.colore ?? 'var(--axis)'} />
-                  <div className="grow">
-                    <div className="title">
-                      {p.descrizione} {p.ricorrenzaId && <span className="badge">ricorrente</span>}
-                    </div>
-                    <div className="sub">
-                      {p.data ? `${dateLabel(p.data)} · ` : ''}
-                      {categoria?.nome ?? 'Senza categoria'}
-                      {paid && paid.importo !== p.importo && ` · pagata ${formatEuro(paid.importo)}`}
-                    </div>
-                  </div>
-                  <strong className="num">{formatEuro(p.importo)}</strong>
-                  {paid ? (
-                    <button type="button" className="btn small" onClick={() => unpayPlanned(account.id, month, p.id)} title="Annulla pagamento">
-                      <span className="text-good">
-                        <Icon name="check" />
-                      </span>
-                      Pagata
-                    </button>
-                  ) : (
-                    <button type="button" className="btn small primary" onClick={() => payPlanned(account.id, month, p.id)}>
-                      Segna pagata
-                    </button>
-                  )}
-                  <IconButton icon="edit" label="Modifica" onClick={() => setEditingPlanned(p)} />
-                </li>
-              );
-            })}
-          </ul>
+          <>
+            {plan.spesePreviste.some((p) => p.aConsumo) && (
+              <>
+                <h3 className="list-heading">A consumo</h3>
+                <ul className="list">
+                  {plan.spesePreviste
+                    .filter((p) => p.aConsumo)
+                    .map((p) => {
+                      const categoria = account.categorie.find((c) => c.id === p.categoriaId);
+                      const spent = consumed(account, p.id);
+                      const count = account.movimenti.filter((t) => t.previstaId === p.id).length;
+                      return (
+                        <li key={p.id} className="list-item wrap-mobile">
+                          <CategoryDot color={categoria?.colore ?? 'var(--axis)'} />
+                          <div className="grow">
+                            <div className="split">
+                              <span className="title">
+                                {p.descrizione} <span className="badge accent">a consumo</span>
+                              </span>
+                              <span className={`small ${spent > p.importo ? 'text-bad' : ''}`}>
+                                {formatEuro(spent)} di {formatEuro(p.importo)}
+                              </span>
+                            </div>
+                            <Meter value={spent} max={p.importo} label={`${p.descrizione}: speso ${formatEuro(spent)} di ${formatEuro(p.importo)}`} />
+                            <div className="sub">
+                              {categoria?.nome ?? 'Senza categoria'} · {count === 1 ? '1 spesa' : `${count} spese`}
+                              {spent <= p.importo ? ` · restano ${formatEuro(p.importo - spent)}` : ` · oltre di ${formatEuro(spent - p.importo)}`}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            className="btn small primary"
+                            onClick={() =>
+                              openTransaction(
+                                { descrizione: p.descrizione, categoriaId: p.categoriaId, previstaId: p.id, ...(month === today().slice(0, 7) ? {} : { data: dateInMonth(month, 1) }) },
+                                account.id,
+                              )
+                            }
+                          >
+                            <Icon name="plus" /> Registra
+                          </button>
+                          <IconButton icon="edit" label="Modifica" onClick={() => setEditingPlanned(p)} />
+                        </li>
+                      );
+                    })}
+                </ul>
+              </>
+            )}
+            {plan.spesePreviste.some((p) => !p.aConsumo) && (
+              <>
+                {plan.spesePreviste.some((p) => p.aConsumo) && <h3 className="list-heading">Con data</h3>}
+                <ul className="list">
+                  {plan.spesePreviste
+                    .filter((p) => !p.aConsumo)
+                    .sort(byDate)
+                    .map((p) => {
+                      const categoria = account.categorie.find((c) => c.id === p.categoriaId);
+                      const paid = p.movimentoId ? account.movimenti.find((t) => t.id === p.movimentoId) : undefined;
+                      return (
+                        <li key={p.id} className="list-item wrap-mobile">
+                          <CategoryDot color={categoria?.colore ?? 'var(--axis)'} />
+                          <div className="grow">
+                            <div className="title">
+                              {p.descrizione} {p.ricorrenzaId && <span className="badge">ricorrente</span>}
+                            </div>
+                            <div className="sub">
+                              {p.data ? `${dateLabel(p.data)} · ` : ''}
+                              {categoria?.nome ?? 'Senza categoria'}
+                              {paid && paid.importo !== p.importo && ` · pagata ${formatEuro(paid.importo)}`}
+                            </div>
+                          </div>
+                          <strong className="num">{formatEuro(p.importo)}</strong>
+                          {paid ? (
+                            <button type="button" className="btn small" onClick={() => unpayPlanned(account.id, month, p.id)} title="Annulla pagamento">
+                              <span className="text-good">
+                                <Icon name="check" />
+                              </span>
+                              Pagata
+                            </button>
+                          ) : (
+                            <button type="button" className="btn small primary" onClick={() => payPlanned(account.id, month, p.id)}>
+                              Segna pagata
+                            </button>
+                          )}
+                          <IconButton icon="edit" label="Modifica" onClick={() => setEditingPlanned(p)} />
+                        </li>
+                      );
+                    })}
+                </ul>
+              </>
+            )}
+          </>
         )}
       </div>
 

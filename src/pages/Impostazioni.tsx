@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { accountTypeLabels } from '../domain/defaults';
+import { myName, ownerName, people } from '../domain/ledger';
 import type { AccountType, AppData } from '../domain/types';
-import { addAccount, deleteAccount, importJson, loadDemo, moveAccount, resetAll, updateAccount, updateSettings } from '../store/actions';
+import { addAccount, deleteAccount, importJson, loadDemo, moveAccount, resetAll, setMyName, updateAccount } from '../store/actions';
 import { getState, useData } from '../store/store';
 import { canDownload, copyBackup, daysSinceBackup, download, downloadBackup, transactionsCsv } from '../ui/backup';
 import { ConfirmButton, Field, IconButton, Link, Notice, Segmented } from '../ui/components';
@@ -35,11 +36,12 @@ function AccountsSection({ data }: { data: AppData }) {
   const [tipo, setTipo] = useState<AccountType>('personale');
   const [nome, setNome] = useState('');
   const [titolare, setTitolare] = useState('');
+  const owner = titolare.trim() || (tipo === 'personale' ? '' : myName(data));
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    const label = nome.trim() || (tipo === 'personale' && titolare.trim() ? `Conto di ${titolare.trim()}` : accountTypeLabels[tipo]);
-    const id = addAccount(tipo, label, tipo === 'personale' ? titolare.trim() : undefined);
+    const label = nome.trim() || (tipo === 'personale' && owner ? `Conto di ${owner}` : accountTypeLabels[tipo]);
+    const id = addAccount(tipo, label, tipo === 'cointestato' ? undefined : owner || undefined);
     setNome('');
     setTitolare('');
     navigate(`conto/${id}/modello`);
@@ -61,7 +63,7 @@ function AccountsSection({ data }: { data: AppData }) {
                 {a.nome} <span className="badge">{accountTypeLabels[a.tipo]}</span> {a.archiviato && <span className="badge">archiviato</span>}
               </div>
               <div className="sub">
-                {a.titolare ? `${a.titolare} · ` : ''}
+                {a.tipo === 'cointestato' ? 'Condiviso · ' : `${ownerName(a)} · `}
                 {Object.keys(a.piani).length} piani mensili · {a.movimenti.length} spese
               </div>
             </div>
@@ -92,13 +94,24 @@ function AccountsSection({ data }: { data: AppData }) {
               ))}
             </select>
           </Field>
-          {tipo === 'personale' ? (
-            <Field label="Di chi è" hint="Es. il nome della tua compagna">
-              <input className="input" value={titolare} placeholder="Nome" onChange={(e) => setTitolare(e.target.value)} />
+          {tipo !== 'cointestato' && (
+            <Field label="Di chi è" hint={tipo === 'personale' ? 'Es. il nome della tua compagna' : `Vuoto = ${myName(data)}`}>
+              <input className="input" list="persone" value={titolare} placeholder={tipo === 'personale' ? 'Nome' : myName(data)} onChange={(e) => setTitolare(e.target.value)} />
+              <datalist id="persone">
+                {people(data).map((p) => (
+                  <option key={p} value={p} />
+                ))}
+              </datalist>
             </Field>
-          ) : (
-            <Field label="Nome del conto">
-              <input className="input" value={nome} placeholder={tipo === 'risparmio' ? 'Es. Conto deposito' : 'Es. Conto titoli'} onChange={(e) => setNome(e.target.value)} />
+          )}
+          {tipo !== 'personale' && (
+            <Field label="Nome del conto" full={tipo === 'cointestato'}>
+              <input
+                className="input"
+                value={nome}
+                placeholder={tipo === 'risparmio' ? 'Es. Conto deposito' : tipo === 'investimenti' ? 'Es. Conto titoli, PAC' : 'Es. Conto di casa'}
+                onChange={(e) => setNome(e.target.value)}
+              />
             </Field>
           )}
         </div>
@@ -111,7 +124,9 @@ function AccountsSection({ data }: { data: AppData }) {
               ? 'Avrà le categorie delle spese personali e parteciperà al conto cointestato.'
               : tipo === 'cointestato'
                 ? 'I conti personali esistenti diventano partecipanti: la regola la scegli nel modello.'
-                : 'Riceve le quote degli altri conti e può ospitare obiettivi.'}
+                : tipo === 'investimenti'
+                  ? 'Riceve le quote degli altri conti; puoi registrare il valore di mercato per vedere il rendimento.'
+                  : 'Riceve le quote degli altri conti e può ospitare obiettivi.'}
           </span>
         </div>
       </form>
@@ -127,8 +142,8 @@ function GeneralSection({ data }: { data: AppData }) {
     <div className="card">
       <h2 style={{ marginBottom: 14 }}>Generali</h2>
       <div className="form-grid">
-        <Field label="Il tuo nome" hint="Per il saluto nella panoramica">
-          <input className="input" value={data.settings.nome ?? ''} onChange={(e) => updateSettings((s) => void (s.nome = e.target.value || undefined))} />
+        <Field label="Il tuo nome" hint="Sei il titolare dei conti con questo nome; la dashboard parte dai tuoi conti">
+          <input className="input" defaultValue={myName(data)} onBlur={(e) => e.target.value.trim() !== myName(data) && setMyName(e.target.value)} />
         </Field>
         <Field label="Tema">
           <Segmented<ThemeChoice>
@@ -180,7 +195,7 @@ function DataSection({ data }: { data: AppData }) {
       <div className="rows small">
         <div>
           {data.settings.ultimoBackup ? `Ultimo backup: ${days === 0 ? 'oggi' : `${days} giorni fa`}.` : 'Non hai ancora fatto un backup.'} Un promemoria compare in
-          panoramica se passano più di 30 giorni.
+          dashboard se passano più di 30 giorni.
         </div>
         {storage && (
           <div className="actions">

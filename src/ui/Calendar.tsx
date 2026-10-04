@@ -114,7 +114,19 @@ export function MonthCalendar({
           </ul>
         </div>
       )}
-      {undated.length > 0 && <p className="small muted">Senza data: {undated.map((p) => `${p.descrizione} (${formatEuro(p.importo)})`).join(', ')}.</p>}
+      {undated.length > 0 && (
+        <p className="small muted">
+          Senza data:{' '}
+          {undated
+            .map((p) => {
+              if (!p.aConsumo) return `${p.descrizione} (${formatEuro(p.importo)})`;
+              const spent = sum(transactions.filter((t) => t.previstaId === p.id), (t) => t.importo);
+              return `${p.descrizione}, a consumo: ${formatEuro(spent)} di ${formatEuro(p.importo)}`;
+            })
+            .join(' · ')}
+          .
+        </p>
+      )}
     </div>
   );
 }

@@ -68,7 +68,7 @@ export function RecurringSection(props: RecurringSectionProps) {
                   <div className="grow">
                     <div className="title">{r.descrizione}</div>
                     <div className="sub">
-                      {scheduleLabel(r)} · {c?.nome}
+                      {r.aConsumo && <span className="badge accent">a consumo</span>} {scheduleLabel(r)} · {c?.nome}
                       {r.fine ? ` · fino al ${dateLabel(r.fine)} ${r.fine.slice(0, 4)}` : ''}
                       {!r.attiva && ' · in pausa'}
                     </div>
@@ -130,9 +130,27 @@ function RecurringForm({
             ))}
           </select>
         </Field>
+        <label className="check full consumo-toggle">
+          <input type="checkbox" checked={!!r.aConsumo} onChange={(e) => set({ aConsumo: e.target.checked || undefined })} />
+          <span>
+            <strong>A consumo</strong>
+            <span className="small muted" style={{ display: 'block' }}>
+              Una voce senza data che più spese durante il mese vanno a riempire (es. carburante, spesa settimanale). Le nuove spese dello stesso tipo si
+              collegano da sole.
+            </span>
+          </span>
+        </label>
         <Field
-          label="Prima data"
-          hint={r.ripetizione.tipo === 'settimane' ? 'Fissa il giorno della settimana (es. un giovedì)' : 'Fissa il giorno del mese'}
+          label={r.aConsumo ? 'Valida dal' : 'Prima data'}
+          hint={
+            r.aConsumo
+              ? r.ripetizione.tipo === 'settimane'
+                ? "L'importo del mese vale per ogni settimana (4 o 5 volte)"
+                : 'Conta solo il mese di partenza'
+              : r.ripetizione.tipo === 'settimane'
+                ? 'Fissa il giorno della settimana (es. un giovedì)'
+                : 'Fissa il giorno del mese'
+          }
         >
           <input className="input" type="date" required value={r.inizio} onChange={(e) => e.target.value && set({ inizio: e.target.value })} />
         </Field>
@@ -150,6 +168,12 @@ function RecurringForm({
               ))}
           </select>
         </Field>
+        {r.aConsumo ? (
+          <div className="full small muted">
+            Nel piano di questo mese la voce vale{' '}
+            {formatEuro(r.importo * Math.max(1, occurrencesInMonth({ ...r, attiva: true }, currentMonth()).length))}.
+          </div>
+        ) : (
         <div className="full small muted">
           {scheduleLabel(r)}. Prossime date:{' '}
           {[0, 1, 2]
@@ -160,6 +184,7 @@ function RecurringForm({
             .join(', ') || 'nessuna nei prossimi tre mesi'}
           .
         </div>
+        )}
         <label className="check full">
           <input type="checkbox" checked={r.attiva} onChange={(e) => set({ attiva: e.target.checked })} />
           Attiva

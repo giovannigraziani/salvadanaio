@@ -43,6 +43,7 @@ function randomExpenses(account: Account, month: MonthKey, lastDay: number, extr
 /** Paga le spese previste già scadute creando i movimenti collegati. */
 function payDuePlanned(account: Account, month: MonthKey, lastDay: number) {
   for (const p of account.piani[month]?.spesePreviste ?? []) {
+    if (p.aConsumo) continue;
     const date = p.data ?? dateInMonth(month, 1);
     if (Number(date.slice(8)) > lastDay) continue;
     const tx: Transaction = { id: `t-${account.id}-${p.id}`, data: date, descrizione: p.descrizione, categoriaId: p.categoriaId, importo: p.importo, previstaId: p.id };
@@ -63,7 +64,10 @@ export function demoData(now: MonthKey, todayDay: number): AppData {
   const mio = newAccount('personale', 'Conto di Giovanni', { id: 'principale', titolare: 'Giovanni', giornoStipendio: payday, meseSaldoIniziale: start, saldoIniziale: euro(1450) });
   const giulia = newAccount('personale', 'Conto di Giulia', { id: 'partner', titolare: 'Giulia', giornoStipendio: payday, meseSaldoIniziale: start, saldoIniziale: euro(980) });
   const comune = newAccount('cointestato', 'Conto cointestato', { id: 'cointestato', meseSaldoIniziale: start, saldoIniziale: euro(1200) });
-  const risparmi = newAccount('risparmio', 'Conto risparmi', { id: 'risparmio', meseSaldoIniziale: start, saldoIniziale: euro(19100) });
+  const risparmi = newAccount('risparmio', 'Conto risparmi', { id: 'risparmio', titolare: 'Giovanni', meseSaldoIniziale: start, saldoIniziale: euro(17900) });
+  const titoli = newAccount('investimenti', 'Conto titoli', { id: 'titoli', titolare: 'Giovanni', meseSaldoIniziale: start, saldoIniziale: euro(1200) });
+  // Valore di mercato del PAC registrato a fine mese (il mercato oscilla).
+  titoli.valutazioni = [0, 1, 2, 3].map((i) => ({ id: `val-${i}`, data: dateInMonth(addMonths(start, i), i === 3 ? Math.max(1, todayDay - 1) : 28), valore: euro([1318, 1395, 1548, 1580][i]!) }));
 
   mio.modello = {
     entrate: [{ descrizione: 'Stipendio', importo: euro(2100) }],
@@ -73,7 +77,7 @@ export function demoData(now: MonthKey, todayDay: number): AppData {
       { descrizione: 'Accantonamento auto nuova', importo: euro(150), obiettivoId: 'auto' },
       { descrizione: 'PAC ETF', importo: euro(100), obiettivoId: 'pac' },
     ],
-    budget: { abbonamenti: euro(45), salute: euro(100), trasporti: euro(180), svago: euro(150), abbigliamento: euro(80), cura: euro(70), regali: euro(40), altro: euro(50) },
+    budget: { abbonamenti: euro(45), salute: euro(100), trasporti: euro(60), svago: euro(120), abbigliamento: euro(60), cura: euro(70), regali: euro(40), altro: euro(50) },
   };
   mio.ricorrenze = [
     { id: 'r-spotify', descrizione: 'Spotify', categoriaId: 'abbonamenti', importo: euro(11.99), ripetizione: { tipo: 'mesi', ogni: 1 }, inizio: dateInMonth(start, 5), attiva: true },
@@ -82,6 +86,8 @@ export function demoData(now: MonthKey, todayDay: number): AppData {
     { id: 'r-cloud', descrizione: 'Archiviazione cloud', categoriaId: 'abbonamenti', importo: euro(29.99), ripetizione: { tipo: 'mesi', ogni: 12 }, inizio: dateInMonth(addMonths(now, -2), 18), attiva: true },
     { id: 'r-dentista', descrizione: 'Pulizia denti', categoriaId: 'salute', importo: euro(80), ripetizione: { tipo: 'mesi', ogni: 6 }, inizio: dateInMonth(addMonths(now, -1), 20), attiva: true },
     { id: 'r-assicurazione', descrizione: 'Rata assicurazione auto', categoriaId: 'trasporti', importo: euro(95), ripetizione: { tipo: 'mesi', ogni: 3 }, inizio: dateInMonth(start, 10), attiva: true },
+    // Carburante: voce a consumo senza data, la riempiono i pieni del mese.
+    { id: 'r-carburante', descrizione: 'Carburante', categoriaId: 'trasporti', importo: euro(120), ripetizione: { tipo: 'mesi', ogni: 1 }, inizio: dateInMonth(start, 1), attiva: true, aConsumo: true },
     // Visita a settimane alterne il giovedì: alcuni mesi due, altri tre.
     { id: 'r-fisioterapia', descrizione: 'Fisioterapia', categoriaId: 'salute', importo: euro(40), ripetizione: { tipo: 'settimane', ogni: 2 }, inizio: firstWeekday(start, 4), attiva: true },
   ];
@@ -108,17 +114,17 @@ export function demoData(now: MonthKey, todayDay: number): AppData {
   const data: AppData = {
     version: 3,
     settings: { nome: 'Giovanni', datiDiEsempio: true },
-    conti: [mio, giulia, comune, risparmi],
+    conti: [mio, giulia, comune, risparmi, titoli],
     obiettivi: [
       { id: 'auto', nome: 'Auto nuova', tipo: 'acquisto', target: euro(8000), scadenza: addMonths(now, 30), contributoMensile: euro(150), saldoIniziale: euro(2400), versamenti: [], contoId: risparmi.id, priorita: 2 },
       { id: 'casa', nome: 'Anticipo prima casa', tipo: 'casa', target: euro(45000), scadenza: addMonths(now, 60), saldoIniziale: euro(9500), versamenti: [], contoId: risparmi.id, priorita: 1 },
       { id: 'emergenza', nome: 'Fondo emergenza', tipo: 'emergenza', target: euro(6000), saldoIniziale: euro(6000), versamenti: [], contoId: risparmi.id, priorita: 1 },
-      { id: 'pac', nome: 'PAC ETF azionario globale', tipo: 'investimento', target: euro(20000), contributoMensile: euro(100), saldoIniziale: euro(1200), versamenti: [], contoId: risparmi.id, priorita: 3 },
+      { id: 'pac', nome: 'PAC ETF azionario globale', tipo: 'investimento', target: euro(20000), contributoMensile: euro(100), saldoIniziale: euro(1200), versamenti: [], contoId: titoli.id, priorita: 3 },
     ],
   };
 
   const personalExtra: Extra = {
-    trasporti: { n: 3, items: [['Benzina', 45, 70], ['Parcheggio', 3, 12], ['Treno', 8, 25]] },
+    trasporti: { n: 2, items: [['Parcheggio', 3, 12], ['Treno', 8, 25]] },
     svago: { n: 8, items: [['Aperitivo', 12, 25], ['Cena fuori', 30, 55], ['Cinema', 9, 18], ['Concerto', 35, 60], ['Pizza con amici', 15, 25]] },
     abbigliamento: { n: 1, items: [['Scarpe', 60, 110], ['Maglione', 30, 60]] },
     cura: { n: 1, items: [['Barbiere', 18, 25], ['Integratori', 15, 30]] },
@@ -165,6 +171,11 @@ export function demoData(now: MonthKey, todayDay: number): AppData {
 
     for (const a of [mio, giulia, comune]) payDuePlanned(a, month, lastDay);
     randomExpenses(mio, month, lastDay, personalExtra, random);
+    // Pieni di carburante collegati alla voce a consumo del mese.
+    const fuel = mio.piani[month]!.spesePreviste.find((p) => p.ricorrenzaId === 'r-carburante');
+    for (const [k, day] of [6, 17, 28].entries())
+      if (fuel && day <= lastDay)
+        mio.movimenti.push({ id: `t-fuel-${month}-${k}`, data: dateInMonth(month, day), descrizione: 'Benzina', categoriaId: 'trasporti', importo: euro(38 + Math.round(random() * 2200) / 100), previstaId: fuel.id });
     randomExpenses(giulia, month, lastDay, giuliaExtra, random);
     randomExpenses(comune, month, lastDay, jointExtra, random);
   }

@@ -6,7 +6,7 @@ import type { Account, AppData, ID, Transaction } from './domain/types';
 import { Conto, isAccountView } from './pages/Conto';
 import { Impostazioni } from './pages/Impostazioni';
 import { Obiettivi } from './pages/Obiettivi';
-import { Panoramica } from './pages/Panoramica';
+import { Dashboard } from './pages/Dashboard';
 import { resetAll } from './store/actions';
 import { getSaveError, useData } from './store/store';
 import { ConfirmButton, Notice } from './ui/components';
@@ -28,17 +28,17 @@ const accountIcons: Record<Account['tipo'], IconName> = {
   personale: 'user',
   cointestato: 'users',
   risparmio: 'piggy',
-  investimenti: 'chart',
+  investimenti: 'trend',
 };
 
 function navItems(data: AppData): NavItem[] {
   return [
-    { path: '', match: '', label: 'Panoramica', short: 'Home', icon: 'home' },
+    { path: '', match: '', label: 'Dashboard', short: 'Home', icon: 'home' },
     ...activeAccounts(data).map((a) => ({
       path: `conto/${a.id}`,
       match: `conto/${a.id}`,
       label: a.nome,
-      short: (a.tipo === 'personale' && a.titolare) || (a.tipo === 'cointestato' ? 'Comune' : accountTypeLabels[a.tipo]),
+      short: a.tipo === 'personale' ? (a.titolare ?? a.nome) : a.tipo === 'cointestato' ? 'Comune' : a.tipo === 'investimenti' ? 'Investim.' : accountTypeLabels[a.tipo],
       icon: accountIcons[a.tipo],
     })),
     { path: 'obiettivi', match: 'obiettivi', label: 'Obiettivi', short: 'Obiettivi', icon: 'target' },
@@ -99,7 +99,7 @@ export function App() {
     page = <Conto id={param} view={isAccountView(view) ? view : undefined} month={extra && isValidMonth(extra) ? extra : undefined} />;
   else if (section === 'obiettivi') page = <Obiettivi />;
   else if (section === 'impostazioni') page = <Impostazioni />;
-  else page = <Panoramica />;
+  else page = <Dashboard />;
   const current = section === 'conto' ? `conto/${param}` : section;
 
   return (
@@ -126,7 +126,7 @@ export function App() {
           )}
           {page}
         </main>
-        <nav className="bottom-nav" aria-label="Sezioni" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(52px, 1fr))` }}>
+        <nav className="bottom-nav" aria-label="Sezioni" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(44px, 1fr))` }}>
           <NavLinks items={items} current={current} short />
         </nav>
       </div>

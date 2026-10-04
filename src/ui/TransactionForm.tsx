@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { newId } from '../domain/id';
-import { activeAccounts, findAccount, primaryAccount } from '../domain/ledger';
+import { activeAccounts, consumed, findAccount, primaryAccount } from '../domain/ledger';
 import { formatEuro } from '../domain/money';
 import { monthOfDate, today } from '../domain/month';
 import type { ID, Transaction } from '../domain/types';
@@ -35,20 +35,28 @@ function TransactionForm({ initial, initialAccountId, exists, onDone }: { initia
   const [accountId, setAccountId] = useState(initialAccountId);
   const account = findAccount(data, accountId)!;
   const categorie = account.categorie.filter((c) => !c.archiviata || c.id === initial.categoriaId);
-  const [tx, setTx] = useState<Transaction>({ ...initial, categoriaId: initial.categoriaId || categorie[0]?.id || '' });
+  // Per una spesa nuova, se la categoria ha una voce a consumo nel mese la collega da sola.
+  const consumptionFor = (accountId: ID, categoriaId: string, date: string) =>
+    findAccount(data, accountId)?.piani[monthOfDate(date)]?.spesePreviste.find((p) => p.aConsumo && p.categoriaId === categoriaId)?.id;
+  const [tx, setTx] = useState<Transaction>(() => {
+    const categoriaId = initial.categoriaId || categorie[0]?.id || '';
+    const previstaId = exists ? initial.previstaId : (initial.previstaId ?? consumptionFor(initialAccountId, categoriaId, initial.data));
+    return { ...initial, categoriaId, previstaId };
+  });
   const [error, setError] = useState('');
   const others = activeAccounts(data).filter((a) => a.id !== accountId && a.tipo === 'personale');
 
   // Spese previste del mese ancora da pagare (più quella già collegata).
   const plan = account.piani[monthOfDate(tx.data)];
-  const linkable = (plan?.spesePreviste ?? []).filter((p) => !p.movimentoId || p.id === initial.previstaId);
+  const linkable = (plan?.spesePreviste ?? []).filter((p) => p.aConsumo || !p.movimentoId || p.id === initial.previstaId);
 
   const set = (patch: Partial<Transaction>) => setTx((t) => ({ ...t, ...patch }));
 
   const changeAccount = (id: ID) => {
     setAccountId(id);
     const next = findAccount(data, id);
-    set({ categoriaId: next?.categorie.find((c) => !c.archiviata)?.id ?? '', previstaId: undefined, pagatoDa: undefined, rimborsato: undefined });
+    const categoriaId = next?.categorie.find((c) => !c.archiviata)?.id ?? '';
+    set({ categoriaId, previstaId: consumptionFor(id, categoriaId, tx.data), pagatoDa: undefined, rimborsato: undefined });
   };
 
   const submit = (e: FormEvent) => {
@@ -94,7 +102,17 @@ function TransactionForm({ initial, initialAccountId, exists, onDone }: { initia
           />
         </Field>
         <Field label="Categoria">
-          <select className="input" value={tx.categoriaId} onChange={(e) => set({ categoriaId: e.target.value })}>
+          <select
+            className="input"
+            value={tx.categoriaId}
+            onChange={(e) => {
+              const categoriaId = e.target.value;
+              const current = linkable.find((p) => p.id === tx.previstaId);
+              // Cambiando categoria segue la voce a consumo della nuova categoria (se c'è), senza toccare un collegamento scelto a mano.
+              const keep = current && !current.aConsumo;
+              set({ categoriaId, ...(keep ? {} : { previstaId: consumptionFor(accountId, categoriaId, tx.data) }) });
+            }}
+          >
             {categorie.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.nome}
@@ -110,13 +128,15 @@ function TransactionForm({ initial, initialAccountId, exists, onDone }: { initia
             onChange={(e) => {
               const p = linkable.find((x) => x.id === e.target.value);
               if (!p) return set({ previstaId: undefined });
-              set({ previstaId: p.id, categoriaId: p.categoriaId, descrizione: tx.descrizione || p.descrizione, importo: tx.importo || p.importo });
+              set({ previstaId: p.id, categoriaId: p.categoriaId, descrizione: tx.descrizione || p.descrizione, importo: tx.importo || (p.aConsumo ? 0 : p.importo) });
             }}
           >
             <option value="">No, estemporanea</option>
             {linkable.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.descrizione} ({formatEuro(p.importo)})
+                {p.aConsumo
+                  ? `${p.descrizione} (a consumo, restano ${formatEuro(Math.max(0, p.importo - consumed(account, p.id) + (p.id === initial.previstaId && exists ? initial.importo : 0)))})`
+                  : `${p.descrizione} (${formatEuro(p.importo)})`}
               </option>
             ))}
           </select>

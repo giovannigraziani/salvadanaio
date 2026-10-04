@@ -1,4 +1,4 @@
-import { emptyData, newAccount } from '../domain/defaults';
+import { DEFAULT_ME, emptyData, newAccount } from '../domain/defaults';
 import { demoData } from '../domain/demo';
 import { newId } from '../domain/id';
 import { createPlan, missingRecurring, summarizePlan, splitAmount } from '../domain/ledger';
@@ -176,7 +176,8 @@ export function savePlanned(accountId: ID, month: MonthKey, p: PlannedExpense) {
 export function payPlanned(accountId: ID, month: MonthKey, plannedId: ID) {
   onAccount(accountId, (a) => {
     const p = a.piani[month]?.spesePreviste.find((x) => x.id === plannedId);
-    if (!p || p.movimentoId) return;
+    // Le voci a consumo si riempiono registrando le singole spese, non con un pagamento unico.
+    if (!p || p.movimentoId || p.aConsumo) return;
     const tx: Transaction = {
       id: newId(),
       data: monthOfDate(today()) === month ? (p.data && p.data < today() ? p.data : today()) : (p.data ?? dateInMonth(month, 1)),
@@ -252,11 +253,11 @@ export function saveTransaction(accountId: ID, tx: Transaction) {
     const previous = index >= 0 ? a.movimenti[index] : undefined;
     if (previous?.previstaId && previous.previstaId !== tx.previstaId) {
       const old = findPlanned(a, previous.previstaId);
-      if (old) delete old.movimentoId;
+      if (old && !old.aConsumo) delete old.movimentoId;
     }
     if (tx.previstaId) {
       const p = findPlanned(a, tx.previstaId);
-      if (p) p.movimentoId = tx.id;
+      if (p && !p.aConsumo) p.movimentoId = tx.id;
     }
     const clean = { ...tx };
     if (!clean.pagatoDa) delete clean.rimborsato;
@@ -270,7 +271,7 @@ export function deleteTransaction(accountId: ID, id: ID) {
     const tx = a.movimenti.find((t) => t.id === id);
     if (tx?.previstaId) {
       const p = findPlanned(a, tx.previstaId);
-      if (p) delete p.movimentoId;
+      if (p?.movimentoId === tx.id) delete p.movimentoId;
     }
     a.movimenti = a.movimenti.filter((t) => t.id !== id);
   });
@@ -376,6 +377,29 @@ export function deleteContribution(goalId: ID, contributionId: ID) {
 
 export function updateSettings(recipe: (s: Settings) => void) {
   mutate((d) => recipe(d.settings));
+}
+
+/** Cambia il mio nome anche come titolare dei miei conti. */
+export function setMyName(nome: string) {
+  mutate((d) => {
+    const old = d.settings.nome?.trim() || d.conti.find((a) => a.tipo === 'personale')?.titolare || DEFAULT_ME;
+    const next = nome.trim();
+    d.settings.nome = next || undefined;
+    if (!next) return;
+    for (const a of d.conti) if (a.titolare === old) a.titolare = next;
+  });
+}
+
+export function addValuation(accountId: ID, data: string, valore: number) {
+  onAccount(accountId, (a) => {
+    (a.valutazioni ??= []).push({ id: newId(), data, valore });
+  });
+}
+
+export function deleteValuation(accountId: ID, id: ID) {
+  onAccount(accountId, (a) => {
+    a.valutazioni = (a.valutazioni ?? []).filter((v) => v.id !== id);
+  });
 }
 
 export function markBackup() {

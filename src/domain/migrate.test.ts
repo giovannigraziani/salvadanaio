@@ -43,14 +43,14 @@ describe('migrazione dalla versione 2', () => {
   const data = migrate(structuredClone(v2));
 
   it('crea un conto per me, uno per la partner, il cointestato e i risparmi', () => {
-    expect(data.version).toBe(3);
+    expect(data.version).toBe(4);
     expect(data.conti.map((a) => [a.id, a.tipo])).toEqual([
       ['principale', 'personale'],
       ['partner', 'personale'],
       ['cointestato', 'cointestato'],
       ['risparmio', 'risparmio'],
     ]);
-    expect(data.conti[1]!.titolare).toBe('Sara');
+    expect(data.conti.map((a) => a.titolare)).toEqual(['Giovanni', 'Sara', undefined, 'Giovanni']);
   });
 
   it('il mio conto conserva piano, spese e ricorrenze convertite', () => {

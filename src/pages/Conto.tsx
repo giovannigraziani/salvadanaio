@@ -32,7 +32,7 @@ export function Conto({ id, view = 'piano', month = currentMonth() }: { id: ID; 
         <h2>Conto non trovato</h2>
         <p>Potrebbe essere stato eliminato.</p>
         <Link className="btn" to="">
-          Torna alla panoramica
+          Torna alla dashboard
         </Link>
       </div>
     );

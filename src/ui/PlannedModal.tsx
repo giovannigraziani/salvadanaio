@@ -60,16 +60,22 @@ function PlannedForm({
         <Field label="Importo previsto (€)">
           <MoneyInput value={p.importo} onChange={(importo) => setP({ ...p, importo })} />
         </Field>
-        <Field label="Data prevista" hint="Facoltativa">
-          <input
-            className="input"
-            type="date"
-            min={dateInMonth(month, 1)}
-            max={dateInMonth(month, 31)}
-            value={p.data ?? ''}
-            onChange={(e) => setP({ ...p, data: e.target.value || undefined })}
-          />
-        </Field>
+        {p.aConsumo ? (
+          <div className="small muted" style={{ alignSelf: 'end', paddingBottom: 8 }}>
+            Voce a consumo: senza data.
+          </div>
+        ) : (
+          <Field label="Data prevista" hint="Facoltativa">
+            <input
+              className="input"
+              type="date"
+              min={dateInMonth(month, 1)}
+              max={dateInMonth(month, 31)}
+              value={p.data ?? ''}
+              onChange={(e) => setP({ ...p, data: e.target.value || undefined })}
+            />
+          </Field>
+        )}
         <Field label="Categoria" full>
           <select className="input" value={p.categoriaId} onChange={(e) => setP({ ...p, categoriaId: e.target.value })}>
             {categorie
@@ -82,6 +88,17 @@ function PlannedForm({
           </select>
         </Field>
       </div>
+      {!p.movimentoId && (
+        <label className="check consumo-toggle section-gap">
+          <input type="checkbox" checked={!!p.aConsumo} onChange={(e) => setP({ ...p, aConsumo: e.target.checked || undefined, data: e.target.checked ? undefined : p.data })} />
+          <span>
+            <strong>A consumo</strong>
+            <span className="small muted" style={{ display: 'block' }}>
+              Più spese durante il mese riempiono questo importo (es. carburante).
+            </span>
+          </span>
+        </label>
+      )}
       {p.ricorrenzaId && <p className="small muted">Modifichi solo questo mese. {recurringHint}</p>}
       <div className="modal-foot">
         <div>

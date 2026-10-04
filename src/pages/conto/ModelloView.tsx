@@ -1,5 +1,5 @@
 import { accountTypeLabels } from '../../domain/defaults';
-import { activeAccounts, averageNeed, participants, shares, splitAmount, splitRuleLabels } from '../../domain/ledger';
+import { activeAccounts, averageNeed, participants, people, shares, splitAmount, splitRuleLabels } from '../../domain/ledger';
 import { formatEuro, sum } from '../../domain/money';
 import { monthlyEquivalent } from '../../domain/schedule';
 import type { Account, AccountType, AppData, PlanTemplate, SplitRule } from '../../domain/types';
@@ -40,7 +40,7 @@ export function ModelloView({ data, account }: { data: AppData; account: Account
         Il modello è il punto di partenza di ogni nuovo piano mensile di questo conto. Le modifiche valgono per i piani creati da ora in poi.
       </p>
 
-      <AccountSettings account={account} />
+      <AccountSettings data={data} account={account} />
 
       {account.tipo === 'cointestato' && <SplitSettings data={data} account={account} />}
 
@@ -142,7 +142,7 @@ export function ModelloView({ data, account }: { data: AppData; account: Account
   );
 }
 
-function AccountSettings({ account }: { account: Account }) {
+function AccountSettings({ data, account }: { data: AppData; account: Account }) {
   const set = (patch: Partial<Account>) => updateAccount(account.id, patch);
   return (
     <div className="card">
@@ -160,11 +160,18 @@ function AccountSettings({ account }: { account: Account }) {
             ))}
           </select>
         </Field>
+        {account.tipo !== 'cointestato' && (
+          <Field label="Titolare" hint="A chi appartiene il conto: la dashboard raggruppa i conti per persona">
+            <input className="input" list="persone-conto" value={account.titolare ?? ''} onChange={(e) => set({ titolare: e.target.value || undefined })} />
+            <datalist id="persone-conto">
+              {people(data).map((p) => (
+                <option key={p} value={p} />
+              ))}
+            </datalist>
+          </Field>
+        )}
         {account.tipo === 'personale' && (
           <>
-            <Field label="Titolare" hint="Il nome della persona, usato nelle quote del cointestato">
-              <input className="input" value={account.titolare ?? ''} onChange={(e) => set({ titolare: e.target.value || undefined })} />
-            </Field>
             <Field label="Giorno dello stipendio" hint="Da questo giorno lo stipendio conta nel saldo">
               <input
                 className="input"

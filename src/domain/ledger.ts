@@ -25,15 +25,58 @@ export function ownerName(account: Account | undefined): string {
   return account.titolare?.trim() || account.nome;
 }
 
+// ---------- Persone ----------
+
+/** Il mio nome: quello delle impostazioni o il titolare del primo conto personale. */
+export function myName(data: AppData): string {
+  return data.settings.nome?.trim() || data.conti.find((a) => a.tipo === 'personale')?.titolare || 'Io';
+}
+
+/** Persone che possiedono almeno un conto attivo non condiviso, partendo da me. */
+export function people(data: AppData): string[] {
+  const names = [...new Set(activeAccounts(data).filter((a) => a.tipo !== 'cointestato').map(ownerName))];
+  const me = myName(data);
+  return names.includes(me) ? [me, ...names.filter((n) => n !== me)] : names;
+}
+
+/** Conti (non condivisi) di una persona. */
+export function accountsOf(data: AppData, person: string): Account[] {
+  return activeAccounts(data).filter((a) => a.tipo !== 'cointestato' && ownerName(a) === person);
+}
+
+/** Conti condivisi a cui partecipa almeno un conto della persona. */
+export function sharedWith(data: AppData, person: string): Account[] {
+  const mine = new Set(accountsOf(data, person).map((a) => a.id));
+  return activeAccounts(data).filter((a) => a.tipo === 'cointestato' && (a.ripartizione?.partecipanti ?? []).some((id) => mine.has(id)));
+}
+
 // ---------- Spese previste ----------
 
 function plannedFromRecurring(r: Recurring, data?: DateKey): PlannedExpense {
   return { id: newId(), descrizione: r.descrizione, categoriaId: r.categoriaId, importo: r.importo, data, ricorrenzaId: r.id };
 }
 
-/** Spese previste generate dalle ricorrenze del mese (una per ogni occorrenza). */
+/**
+ * Spese previste generate dalle ricorrenze del mese: una per ogni occorrenza, oppure,
+ * per le spese a consumo, una sola voce senza data che vale importo × occorrenze.
+ */
 export function recurringForMonth(ricorrenze: Recurring[], month: MonthKey): PlannedExpense[] {
-  return ricorrenze.flatMap((r) => occurrencesInMonth(r, month).map((d) => plannedFromRecurring(r, d)));
+  return ricorrenze.flatMap((r) => {
+    const dates = occurrencesInMonth(r, month);
+    if (!r.aConsumo) return dates.map((d) => plannedFromRecurring(r, d));
+    return dates.length ? [{ ...plannedFromRecurring(r), importo: r.importo * dates.length, aConsumo: true }] : [];
+  });
+}
+
+/** Quanto è stato speso su una voce a consumo (tutte le spese collegate). */
+export function consumed(account: Account, plannedId: ID): Cents {
+  return sum(account.movimenti.filter((t) => t.previstaId === plannedId), (t) => t.importo);
+}
+
+/** Quanto di una spesa prevista risulta già pagato: tutta (singola) o fino al suo importo (a consumo). */
+export function paidPart(account: Account, p: PlannedExpense): Cents {
+  if (p.aConsumo) return Math.min(p.importo, consumed(account, p.id));
+  return p.movimentoId ? p.importo : 0;
 }
 
 /** Occorrenze delle ricorrenze del mese non ancora presenti nel piano. */
@@ -135,7 +178,7 @@ export function summarizePlan(data: AppData, account: Account, month: MonthKey):
   const speso = sum(tx, (t) => t.importo);
   const spesoPianificato = sum(tx.filter((t) => t.previstaId), (t) => t.importo);
   const previste = sum(plan?.spesePreviste ?? [], (p) => p.importo);
-  const previstePagate = sum((plan?.spesePreviste ?? []).filter((p) => p.movimentoId), (p) => p.importo);
+  const previstePagate = sum(plan?.spesePreviste ?? [], (p) => paidPart(account, p));
   return {
     entrate,
     inArrivo,
@@ -297,4 +340,24 @@ export function averageNeed(account: Account): Cents {
   for (const r of account.ricorrenze.filter((x) => x.attiva)) recurring[r.categoriaId] = (recurring[r.categoriaId] ?? 0) + monthlyEquivalent(r);
   const ids = new Set([...Object.keys(account.modello.budget), ...Object.keys(recurring)]);
   return sum([...ids], (id) => Math.max(account.modello.budget[id] ?? 0, recurring[id] ?? 0));
+}
+
+// ---------- Investimenti ----------
+
+export interface InvestmentSummary {
+  /** Soldi messi nel conto al netto dei prelievi (il saldo stimato). */
+  versato: Cents;
+  /** Ultimo valore di mercato registrato. */
+  valore?: Cents;
+  data?: DateKey;
+  rendimento?: Cents;
+  rendimentoPct?: number;
+}
+
+export function investmentSummary(data: AppData, account: Account, month: MonthKey, today: DateKey): InvestmentSummary {
+  const versato = currentBalance(data, account, month, today);
+  const last = [...(account.valutazioni ?? [])].sort((a, b) => b.data.localeCompare(a.data))[0];
+  if (!last) return { versato };
+  const rendimento = last.valore - versato;
+  return { versato, valore: last.valore, data: last.data, rendimento, rendimentoPct: versato > 0 ? (rendimento / versato) * 100 : undefined };
 }
