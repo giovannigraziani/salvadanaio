@@ -10,7 +10,7 @@ L'app viene pubblicata automaticamente su GitHub Pages a ogni push sul branch pr
 
 **https://giovannigraziani.github.io/salvadanaio/**
 
-Serve una sola configurazione, da fare una volta: su GitHub apri **Settings → Pages** e in *Build and deployment → Source* scegli **GitHub Actions**. Dopo il push successivo (o rilanciando il workflow "Pubblica su GitHub Pages" dalla scheda *Actions*) l'indirizzo è attivo. Da telefono si può aggiungere alla schermata Home.
+Serve una sola configurazione, da fare una volta: su GitHub apri **Settings → Pages** e in *Build and deployment → Source* scegli **GitHub Actions** (non *Deploy from a branch*: in quel caso GitHub pubblica il codice sorgente e la pagina mostra solo un avviso). Dopo il push successivo (o rilanciando il workflow "Pubblica su GitHub Pages" dalla scheda *Actions*) l'indirizzo è attivo. Da telefono si può aggiungere alla schermata Home.
 
 Il codice è pubblico, i dati no: restano nel browser di chi usa l'app. Usando sempre lo stesso browser e dispositivo i dati si ritrovano; per passare a un altro dispositivo esporta e importa il backup.
 

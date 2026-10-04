@@ -7,9 +7,35 @@
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <title>Salvadanaio</title>
+    <style>
+      .avvio-fallito {
+        max-width: 560px;
+        margin: 48px auto;
+        padding: 0 16px;
+        font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+        line-height: 1.5;
+        opacity: 0;
+        animation: avvio-fallito-mostra 0s 3s forwards;
+      }
+      @keyframes avvio-fallito-mostra {
+        to {
+          opacity: 1;
+        }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Visibile solo se l'app non parte (es. GitHub Pages pubblica il codice sorgente invece della build). -->
+      <div class="avvio-fallito" role="alert">
+        <h1>Salvadanaio non si è avviato</h1>
+        <p>
+          Se stai aprendo l'app da GitHub Pages, la pubblicazione è configurata sul codice sorgente.
+          Su GitHub apri <strong>Settings → Pages</strong> e in <em>Build and deployment → Source</em> scegli
+          <strong>GitHub Actions</strong>, poi rilancia il workflow "Pubblica su GitHub Pages" dalla scheda Actions.
+        </p>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
